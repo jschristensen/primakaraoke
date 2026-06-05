@@ -79,7 +79,7 @@
   /* ---------------- Player / immersive stage ---------------- */
   #stage{position:relative}
   #stage.expanded{
-    position:fixed; inset:0; z-index:60; margin:0; max-width:none;
+    position:fixed; top:0; left:0; width:100%; height:var(--stage-h,100vh); z-index:60; margin:0; max-width:none;
     background:radial-gradient(130% 90% at 50% -10%,#16224a 0%,#0a1020 70%);
     display:flex; flex-direction:column; padding:0;
   }
@@ -94,20 +94,20 @@
     border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px}
   #stage:not(.expanded) .lyricbox{height:min(52vh,440px)}
   #stage.expanded .lyricbox{flex:1 1 auto;border:none;border-radius:0}
-  .lyricscroll{position:absolute;left:0;right:0;padding:42vh 6vw;transition:transform .35s cubic-bezier(.22,.61,.36,1);text-align:center}
+  .lyricscroll{position:absolute;left:0;right:0;padding:var(--pad-y,42vh) var(--pad-x,6vw);transition:transform .35s cubic-bezier(.22,.61,.36,1);text-align:center}
   #stage:not(.expanded) .lyricscroll{padding:40% 22px}
   .blk{transition:color .2s, opacity .2s}
   .blk.section{color:#7aa0ff;font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin:.5em 0 .15em;font-weight:700}
   .blk.chord{font-family:ui-monospace,Menlo,monospace;color:#7fd0ff;opacity:.5;font-size:.8em;white-space:pre-wrap}
   .blk.lyric{color:#8090b8;opacity:.6;font-weight:600;line-height:1.55}
   #stage:not(.expanded) .blk.lyric{font-size:19px}
-  #stage.expanded .blk.lyric{font-size:clamp(22px,4.6vw,46px)}
+  #stage.expanded .blk.lyric{font-size:var(--lyric,34px)}
   .blk.lyric.active{color:var(--hi);opacity:1;font-weight:800;text-shadow:0 0 26px rgba(255,228,94,.4)}
   .blk.lyric.past{opacity:.28}
   .blk.lyric .chordrow{display:block;font-family:ui-monospace,Menlo,monospace;color:#7fd0ff;opacity:.7;
     font-weight:600;white-space:pre-wrap;margin-bottom:.05em}
   #stage:not(.expanded) .blk.lyric .chordrow{font-size:12px}
-  #stage.expanded .blk.lyric .chordrow{font-size:clamp(12px,1.9vw,20px)}
+  #stage.expanded .blk.lyric .chordrow{font-size:var(--chord,16px)}
   .flash{animation:flash .5s ease}
   @keyframes flash{0%{text-shadow:0 0 0 rgba(52,211,153,0)}30%{text-shadow:0 0 40px rgba(52,211,153,.9)}100%{}}
 
@@ -310,8 +310,7 @@
             <div class="ttl" id="pl-title">—</div>
             <div class="art" id="pl-artist"></div>
           </div>
-          <button class="iconbtn" id="pl-full" title="Full screen (F)">⤢</button>
-          <button class="iconbtn" id="pl-close" title="Close (Esc)">✕</button>
+          <button class="iconbtn" id="pl-close" title="Back to songbook (Esc)">✕</button>
         </div>
         <div class="lyricbox"><div class="lyricscroll" id="pl-scroll"></div></div>
         <div class="micbar" id="pl-micbar">
@@ -349,13 +348,12 @@
         speedwrap:stage.querySelector("#pl-speedwrap"), hint:stage.querySelector("#pl-hint"),
         micbar:stage.querySelector("#pl-micbar"), micstate:stage.querySelector("#pl-micstate"),
         miclevel:stage.querySelector("#pl-miclevel"), heard:stage.querySelector("#pl-heard"),
-        full:stage.querySelector("#pl-full"), close:stage.querySelector("#pl-close"),
+        close:stage.querySelector("#pl-close"),
         modeBtns:[...stage.querySelectorAll(".seg button")],
       };
       this.el.next.onclick = ()=> this.next(true);
       this.el.prev.onclick = ()=> this.prev();
-      this.el.full.onclick = ()=> this.toggleNativeFullscreen();
-      this.el.close.onclick = ()=> this.close();
+      this.el.close.onclick = ()=> this.requestClose();
       this.el.chords.onchange = ()=>{ this.showChords = this.el.chords.checked; this.renderBlocks(); };
       this.el.speed.onchange = ()=>{ this.perLineEff(); };
       this.el.modeBtns.forEach(b=> b.onclick = ()=> this.setMode(b.dataset.mode));
@@ -370,7 +368,7 @@
       this.el.artist.textContent = song.artist || "";
       this.el.chords.parentElement.style.display = song.blocks.some(b=>b.kind==="chord"||b.chords) ? "" : "none";
       this.renderBlocks();
-      this.expand(true);          // ← fuller screen the moment a song starts
+      this.enter();               // ← full-page, own history entry, locked dimensions
       this.setMode("manual");
       this.update();
       // focus stage for keyboard control
@@ -531,22 +529,39 @@
       this.el.miclevel.style.width="0%";
     },
 
-    /* ---- presentation ---- */
-    expand(on){
-      stage.classList.toggle("expanded", on!==false);
-      document.body.style.overflow = stage.classList.contains("expanded") ? "hidden" : "";
+    /* ---- presentation: a full-page view with frozen dimensions ---- */
+    // Capture the viewport in pixels once, so the stage never reflows when the
+    // mobile address bar collapses (the usual source of mid-song resize jumps).
+    lockDims(){
+      const w = window.innerWidth, h = window.innerHeight;
+      const lyric = Math.max(22, Math.min(46, Math.round(w * 0.046)));
+      stage.style.setProperty("--stage-h", h + "px");
+      stage.style.setProperty("--lyric",   lyric + "px");
+      stage.style.setProperty("--chord",   Math.round(lyric * 0.5) + "px");
+      stage.style.setProperty("--pad-y",   Math.round(h * 0.42) + "px");
+      stage.style.setProperty("--pad-x",   Math.round(w * 0.06) + "px");
+    },
+    enter(){
+      this.lockDims();
+      stage.hidden = false;
+      stage.classList.add("expanded");
+      document.body.classList.add("playing");
+      document.body.style.overflow = "hidden";
+      // give the player its own page in history so Back / Esc return to the songbook
+      if(location.hash !== "#play") history.pushState({player:1}, "", "#play");
       requestAnimationFrame(()=>this.update());
     },
-    toggleNativeFullscreen(){
-      const el=stage;
-      if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el); }
-      else { (document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document); }
+    requestClose(){
+      if(location.hash === "#play") history.back();  // -> popstate -> close(true)
+      else this.close(true);
     },
-    close(){
+    close(fromPop){
       this.stopAuto(); this.stopMic();
-      if(document.fullscreenElement) this.toggleNativeFullscreen();
-      this.expand(false);
+      stage.classList.remove("expanded");
+      document.body.classList.remove("playing");
+      document.body.style.overflow = "";
       stage.hidden = true;
+      if(!fromPop && location.hash === "#play") history.back();
     },
   };
 
@@ -555,8 +570,15 @@
     if(stage.hidden) return;
     if(e.key===" "||e.key==="ArrowRight"){ e.preventDefault(); Player.next(true); }
     else if(e.key==="ArrowLeft"){ e.preventDefault(); Player.prev(); }
-    else if(e.key==="Escape"){ if(stage.classList.contains("expanded")) Player.close(); }
-    else if(e.key==="f"||e.key==="F"){ Player.toggleNativeFullscreen(); }
+    else if(e.key==="Escape"){ Player.requestClose(); }
+  });
+
+  // Browser Back (or our own history.back) leaves the full-page player.
+  window.addEventListener("popstate", ()=>{ if(!stage.hidden) Player.close(true); });
+  // Re-lock dimensions only on a genuine rotation — never on the spurious
+  // resizes the mobile URL bar fires, so the page won't jump mid-song.
+  window.addEventListener("orientationchange", ()=>{
+    if(!stage.hidden){ Player.lockDims(); setTimeout(()=>Player.update(), 80); }
   });
 
   /* =====================================================================
