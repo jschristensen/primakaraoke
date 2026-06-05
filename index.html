@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Prima Karaoke</title>
-<meta name="description" content="A self-contained karaoke teleprompter: built-in songbook, live lyric search, paste-your-own lyrics, and a mic level/pitch meter." />
+<meta name="description" content="A karaoke teleprompter for Peder Bacher's Primavera 2026 songbook: immersive full-screen lyrics, auto / manual / voice-advance, mic level + pitch meter." />
 <style>
   :root{
     --bg:#0b0f1a; --bg2:#121a2e; --panel:#161f38; --panel2:#1d2a4a;
     --ink:#eaf0ff; --muted:#9fb0d6; --line:#26345b;
     --accent:#56b6ff; --accent2:#a06bff; --good:#34d399; --warn:#fbbf24; --bad:#f87171;
-    --hi:#ffe45e;
+    --hi:#ffe45e; --mic:#ff5d73;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -55,57 +55,100 @@
   .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:#0d1426;border:1px solid var(--line);
     font-size:11.5px;color:var(--muted)}
   /* songbook */
-  .songgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:6px}
+  .songgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:6px}
   .song{
     text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--panel);
     border-radius:12px;padding:12px 13px;transition:.15s}
   .song:hover{transform:translateY(-2px);border-color:var(--accent)}
-  .song .t{font-weight:700}
+  .song .n{font-size:11px;color:var(--accent);font-weight:700}
+  .song .t{font-weight:700;margin-top:2px}
   .song .a{color:var(--muted);font-size:12.5px}
-  .song .meta{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
   /* search results */
   .results{margin-top:12px;display:flex;flex-direction:column;gap:8px}
   .result{display:flex;gap:12px;align-items:center;justify-content:space-between;
     border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:11px 13px}
   .result .t{font-weight:600}
   .result .a{color:var(--muted);font-size:12.5px}
-  /* player */
-  .stage{margin-top:14px}
-  .nowtitle{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-  .nowtitle .t{font-size:18px;font-weight:800}
-  .nowtitle .a{color:var(--muted)}
-  .lyricbox{
-    position:relative;height:min(56vh,460px);overflow:hidden;border-radius:14px;
-    background:radial-gradient(120% 80% at 50% 0%,#16224a 0%,#0c1326 70%);
-    border:1px solid var(--line);padding:0 18px}
-  .lyricscroll{position:absolute;left:0;right:0;padding:42% 22px;transition:transform .35s ease;text-align:center}
-  .lyricscroll .ln{font-size:20px;line-height:1.7;color:#7e8db5;transition:color .2s, transform .2s, opacity .2s;opacity:.65}
-  .lyricscroll .ln.active{color:var(--hi);opacity:1;font-weight:800;font-size:23px;text-shadow:0 0 22px rgba(255,228,94,.35)}
-  .lyricscroll .ln.past{opacity:.35}
-  .lyricscroll .ln.blank{height:.6em}
-  .controls{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
-  .timeline{flex:1 1 220px;min-width:160px}
-  input[type=range]{width:100%;accent-color:var(--accent)}
-  .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;min-width:84px;text-align:center}
-  .iconbtn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:18px;
-    border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
-  .iconbtn.big{width:58px;height:58px;font-size:22px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06101f;border-color:transparent}
-  /* mic */
-  .meterwrap{margin-top:10px}
-  .bar{height:18px;border-radius:999px;background:#0d1426;border:1px solid var(--line);overflow:hidden}
-  .bar > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--good),var(--warn),var(--bad));transition:width .06s linear}
-  .note{font-size:46px;font-weight:800;letter-spacing:1px}
-  .cents{height:10px;border-radius:999px;background:#0d1426;border:1px solid var(--line);position:relative;overflow:hidden;margin-top:6px}
-  .cents > i{position:absolute;top:0;bottom:0;width:3px;background:var(--accent);left:50%;transform:translateX(-50%);transition:left .08s linear}
-  .cents .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3a4a72}
-  .hint{margin-top:12px;color:var(--muted);font-size:12.5px}
-  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0d1426;border:1px solid var(--line);
-    padding:10px 16px;border-radius:12px;color:var(--ink);box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:50;font-size:13.5px;max-width:90vw}
-  footer.foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
   .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
     display:inline-block;animation:spin .8s linear infinite;vertical-align:-3px}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0d1426;border:1px solid var(--line);
+    padding:10px 16px;border-radius:12px;color:var(--ink);box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:90;font-size:13.5px;max-width:90vw}
+  footer.foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
+
+  /* ---------------- Player / immersive stage ---------------- */
+  #stage{position:relative}
+  #stage.expanded{
+    position:fixed; inset:0; z-index:60; margin:0; max-width:none;
+    background:radial-gradient(130% 90% at 50% -10%,#16224a 0%,#0a1020 70%);
+    display:flex; flex-direction:column; padding:0;
+  }
+  .stagebar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);
+    background:rgba(8,14,28,.6);backdrop-filter:blur(6px)}
+  #stage:not(.expanded) .stagebar{border:1px solid var(--line);border-radius:14px 14px 0 0}
+  .stagebar .ttl{font-weight:800;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stagebar .art{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .lyricbox{
+    position:relative;overflow:hidden;
+    background:radial-gradient(120% 80% at 50% 0%,#16224a 0%,#0c1326 70%);
+    border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px}
+  #stage:not(.expanded) .lyricbox{height:min(52vh,440px)}
+  #stage.expanded .lyricbox{flex:1 1 auto;border:none;border-radius:0}
+  .lyricscroll{position:absolute;left:0;right:0;padding:42vh 6vw;transition:transform .35s cubic-bezier(.22,.61,.36,1);text-align:center}
+  #stage:not(.expanded) .lyricscroll{padding:40% 22px}
+  .blk{transition:color .2s, opacity .2s}
+  .blk.section{color:#7aa0ff;font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin:.5em 0 .15em;font-weight:700}
+  .blk.chord{font-family:ui-monospace,Menlo,monospace;color:#7fd0ff;opacity:.5;font-size:.8em;white-space:pre-wrap}
+  .blk.lyric{color:#8090b8;opacity:.6;font-weight:600;line-height:1.55}
+  #stage:not(.expanded) .blk.lyric{font-size:19px}
+  #stage.expanded .blk.lyric{font-size:clamp(22px,4.6vw,46px)}
+  .blk.lyric.active{color:var(--hi);opacity:1;font-weight:800;text-shadow:0 0 26px rgba(255,228,94,.4)}
+  .blk.lyric.past{opacity:.28}
+  .blk.lyric .chordrow{display:block;font-family:ui-monospace,Menlo,monospace;color:#7fd0ff;opacity:.7;
+    font-weight:600;white-space:pre-wrap;margin-bottom:.05em}
+  #stage:not(.expanded) .blk.lyric .chordrow{font-size:12px}
+  #stage.expanded .blk.lyric .chordrow{font-size:clamp(12px,1.9vw,20px)}
+  .flash{animation:flash .5s ease}
+  @keyframes flash{0%{text-shadow:0 0 0 rgba(52,211,153,0)}30%{text-shadow:0 0 40px rgba(52,211,153,.9)}100%{}}
+
+  .controls{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap;
+    background:rgba(8,14,28,.6)}
+  #stage:not(.expanded) .controls{border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px;margin-bottom:6px}
+  .iconbtn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:18px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;flex:none}
+  .iconbtn:hover{border-color:var(--accent)}
+  .iconbtn.big{width:58px;height:58px;font-size:22px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06101f;border-color:transparent}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .seg button{appearance:none;border:none;background:transparent;color:var(--muted);padding:7px 13px;
+    cursor:pointer;font-weight:700;font-size:12.5px}
+  .seg button[aria-pressed="true"]{background:var(--accent);color:#06101f}
+  .progress{flex:1 1 160px;min-width:120px;height:6px;border-radius:999px;background:#0d1426;border:1px solid var(--line);overflow:hidden}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .counter{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;min-width:64px;text-align:center}
+  .toggle{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;cursor:pointer;user-select:none}
+
+  /* Mic-advance banner — deliberately loud so it's obvious the mic is driving */
+  .micbar{display:none;align-items:center;gap:12px;padding:10px 16px;
+    background:linear-gradient(90deg,rgba(255,93,115,.18),rgba(255,93,115,.05));
+    border-top:1px solid rgba(255,93,115,.4);border-bottom:1px solid rgba(255,93,115,.4)}
+  .micbar.on{display:flex}
+  .micdot{width:14px;height:14px;border-radius:50%;background:var(--mic);flex:none;box-shadow:0 0 0 0 rgba(255,93,115,.7);
+    animation:pulse 1.3s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,93,115,.6)}70%{box-shadow:0 0 0 14px rgba(255,93,115,0)}100%{box-shadow:0 0 0 0 rgba(255,93,115,0)}}
+  .micbar .label{font-weight:800;letter-spacing:.5px;color:#ffd9df;white-space:nowrap}
+  .micbar .state{color:#ffeef0;font-size:13px;min-width:150px}
+  .micbar .level{flex:1 1 120px;min-width:90px;height:12px;border-radius:999px;background:rgba(0,0,0,.35);overflow:hidden}
+  .micbar .level > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--good),var(--warn),var(--mic));transition:width .05s linear}
+  .micbar .heard{font-weight:800;color:var(--good);opacity:0;transition:opacity .15s}
+  .micbar .heard.show{opacity:1}
+  /* a soft glowing frame around the whole stage while mic is listening */
+  #stage.miclive::after{content:"";position:absolute;inset:0;pointer-events:none;border:3px solid rgba(255,93,115,.55);
+    border-radius:inherit;animation:framepulse 1.3s infinite;z-index:5}
+  #stage.expanded.miclive::after{border-radius:0}
+  @keyframes framepulse{0%,100%{opacity:.35}50%{opacity:.9}}
+
+  .hint{padding:10px 16px;color:var(--muted);font-size:12.5px}
 </style>
 </head>
 <body>
@@ -114,7 +157,7 @@
     <div class="logo">🎤</div>
     <div class="brand">
       <h1>Prima Karaoke</h1>
-      <p>Built-in songbook · live lyric search · paste your own · mic meter</p>
+      <p>Peder Bacher · Primavera 2026 songbook · auto / manual / voice-advance</p>
     </div>
   </header>
 
@@ -122,15 +165,19 @@
     <button role="tab" data-tab="songbook" aria-selected="true">Songbook</button>
     <button role="tab" data-tab="search" aria-selected="false">Search lyrics</button>
     <button role="tab" data-tab="paste" aria-selected="false">Paste lyrics</button>
-    <button role="tab" data-tab="mic" aria-selected="false">Mic check</button>
   </nav>
+
+  <!-- The player stage is persistent; it lifts to full-screen when a song starts -->
+  <div id="stage" hidden></div>
 
   <main id="view"></main>
 
   <footer class="foot">
-    Prima Karaoke — a single static page. Lyric search uses the free
-    <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a> API. Built-in songs are
-    traditional / public-domain. No audio is stored or streamed; this is a synced lyric teleprompter.
+    Songbook loaded live from
+    <a href="https://github.com/pederbacher/songs" target="_blank" rel="noopener">pederbacher/songs</a>
+    (Primavera 2026 collection). Lyric search uses
+    <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>. No audio is stored or streamed —
+    this is a lyric teleprompter. The mic, when armed, is processed locally and never leaves your device.
   </footer>
 </div>
 
@@ -138,739 +185,549 @@
 (function(){
   "use strict";
 
-  /* ---------------------------------------------------------------------
-   * Built-in songbook — traditional / public-domain songs.
-   * Lyrics use LRC timestamps so the teleprompter scrolls in time.
-   * ------------------------------------------------------------------- */
-  const LRC = (s) => s.trim();
-  const SONGS = [
-    { title:"Twinkle, Twinkle, Little Star", artist:"Traditional", lrc:LRC(`
-[00:00.50]Twinkle, twinkle, little star
-[00:03.50]How I wonder what you are
-[00:06.50]Up above the world so high
-[00:09.50]Like a diamond in the sky
-[00:12.50]Twinkle, twinkle, little star
-[00:15.50]How I wonder what you are`)},
-    { title:"Row, Row, Row Your Boat", artist:"Traditional", lrc:LRC(`
-[00:00.50]Row, row, row your boat
-[00:03.00]Gently down the stream
-[00:05.50]Merrily, merrily, merrily, merrily
-[00:08.50]Life is but a dream`)},
-    { title:"Mary Had a Little Lamb", artist:"Traditional", lrc:LRC(`
-[00:00.50]Mary had a little lamb
-[00:03.00]Little lamb, little lamb
-[00:05.50]Mary had a little lamb
-[00:08.00]Its fleece was white as snow`)},
-    { title:"Jingle Bells", artist:"James Lord Pierpont", lrc:LRC(`
-[00:00.50]Dashing through the snow
-[00:02.80]In a one-horse open sleigh
-[00:05.40]O'er the fields we go
-[00:07.80]Laughing all the way
-[00:10.40]Bells on bobtails ring
-[00:12.80]Making spirits bright
-[00:15.40]What fun it is to ride and sing
-[00:18.40]A sleighing song tonight
-[00:21.40]Jingle bells, jingle bells
-[00:24.00]Jingle all the way
-[00:26.60]Oh what fun it is to ride
-[00:29.40]In a one-horse open sleigh`)},
-    { title:"Amazing Grace", artist:"John Newton", lrc:LRC(`
-[00:00.80]Amazing grace, how sweet the sound
-[00:05.00]That saved a wretch like me
-[00:09.20]I once was lost, but now am found
-[00:13.40]Was blind, but now I see`)},
-    { title:"Auld Lang Syne", artist:"Robert Burns", lrc:LRC(`
-[00:00.80]Should auld acquaintance be forgot
-[00:04.80]And never brought to mind?
-[00:08.80]Should auld acquaintance be forgot
-[00:12.80]And auld lang syne?
-[00:16.80]For auld lang syne, my dear
-[00:20.80]For auld lang syne
-[00:24.80]We'll take a cup of kindness yet
-[00:28.80]For auld lang syne`)},
-    { title:"When the Saints Go Marching In", artist:"Traditional", lrc:LRC(`
-[00:00.50]Oh, when the saints go marching in
-[00:04.00]Oh, when the saints go marching in
-[00:08.00]Oh, how I want to be in that number
-[00:12.00]When the saints go marching in`)},
-    { title:"You Are My Sunshine", artist:"Traditional", lrc:LRC(`
-[00:00.50]You are my sunshine, my only sunshine
-[00:04.50]You make me happy when skies are gray
-[00:08.50]You'll never know, dear, how much I love you
-[00:12.50]Please don't take my sunshine away`)},
-    { title:"She'll Be Coming 'Round the Mountain", artist:"Traditional", lrc:LRC(`
-[00:00.50]She'll be coming 'round the mountain when she comes
-[00:04.50]She'll be coming 'round the mountain when she comes
-[00:08.50]She'll be coming 'round the mountain
-[00:10.50]She'll be coming 'round the mountain
-[00:12.50]She'll be coming 'round the mountain when she comes`)},
-    { title:"Oh! Susanna", artist:"Stephen Foster", lrc:LRC(`
-[00:00.50]I come from Alabama with my banjo on my knee
-[00:05.00]I'm going to Louisiana, my true love for to see
-[00:09.50]It rained all night the day I left, the weather it was dry
-[00:14.00]The sun so hot I froze to death, Susanna don't you cry
-[00:18.50]Oh, Susanna, oh don't you cry for me
-[00:22.50]For I come from Alabama with my banjo on my knee`)},
-    { title:"Home on the Range", artist:"Traditional", lrc:LRC(`
-[00:00.80]Oh give me a home where the buffalo roam
-[00:05.20]Where the deer and the antelope play
-[00:09.60]Where seldom is heard a discouraging word
-[00:14.00]And the skies are not cloudy all day
-[00:18.40]Home, home on the range
-[00:22.40]Where the deer and the antelope play
-[00:26.80]Where seldom is heard a discouraging word
-[00:31.20]And the skies are not cloudy all day`)},
-    { title:"Clementine", artist:"Traditional", lrc:LRC(`
-[00:00.50]In a cavern, in a canyon, excavating for a mine
-[00:05.50]Dwelt a miner, forty-niner, and his daughter Clementine
-[00:10.50]Oh my darling, oh my darling, oh my darling Clementine
-[00:15.50]You are lost and gone forever, dreadful sorry, Clementine`)},
-    { title:"Camptown Races", artist:"Stephen Foster", lrc:LRC(`
-[00:00.50]The Camptown ladies sing this song, doo-dah, doo-dah
-[00:04.50]The Camptown racetrack five miles long, oh the doo-dah day
-[00:08.50]Going to run all night, going to run all day
-[00:12.50]I bet my money on the bob-tail nag, somebody bet on the bay`)},
-    { title:"My Bonnie Lies Over the Ocean", artist:"Traditional", lrc:LRC(`
-[00:00.50]My Bonnie lies over the ocean
-[00:03.50]My Bonnie lies over the sea
-[00:06.50]My Bonnie lies over the ocean
-[00:09.50]Oh bring back my Bonnie to me
-[00:12.50]Bring back, bring back
-[00:15.00]Bring back my Bonnie to me, to me
-[00:18.50]Bring back, bring back
-[00:21.00]Oh bring back my Bonnie to me`)},
-    { title:"Down by the Riverside", artist:"Traditional", lrc:LRC(`
-[00:00.50]Gonna lay down my burden
-[00:03.50]Down by the riverside
-[00:07.00]Down by the riverside
-[00:10.00]Down by the riverside
-[00:13.00]Gonna lay down my burden
-[00:16.00]Down by the riverside
-[00:19.50]Gonna study war no more`)},
-    { title:"This Little Light of Mine", artist:"Traditional", lrc:LRC(`
-[00:00.50]This little light of mine
-[00:03.00]I'm gonna let it shine
-[00:05.50]This little light of mine
-[00:08.00]I'm gonna let it shine
-[00:10.50]This little light of mine
-[00:13.00]I'm gonna let it shine
-[00:15.50]Let it shine, let it shine, let it shine`)},
-    { title:"Frère Jacques", artist:"Traditional", lrc:LRC(`
-[00:00.50]Frère Jacques, Frère Jacques
-[00:03.50]Dormez-vous? Dormez-vous?
-[00:06.50]Sonnez les matines, sonnez les matines
-[00:10.00] Din, dan, don. Din, dan, don.`)},
-    { title:"London Bridge Is Falling Down", artist:"Traditional", lrc:LRC(`
-[00:00.50]London Bridge is falling down
-[00:03.00]Falling down, falling down
-[00:05.50]London Bridge is falling down
-[00:08.00]My fair lady`)},
-    { title:"The Wheels on the Bus", artist:"Traditional", lrc:LRC(`
-[00:00.50]The wheels on the bus go round and round
-[00:04.00]Round and round, round and round
-[00:07.50]The wheels on the bus go round and round
-[00:11.00]All through the town`)},
-    { title:"Old MacDonald Had a Farm", artist:"Traditional", lrc:LRC(`
-[00:00.50]Old MacDonald had a farm, E-I-E-I-O
-[00:04.50]And on his farm he had a cow, E-I-E-I-O
-[00:09.00]With a moo-moo here and a moo-moo there
-[00:13.00]Here a moo, there a moo, everywhere a moo-moo
-[00:17.50]Old MacDonald had a farm, E-I-E-I-O`)},
-    { title:"If You're Happy and You Know It", artist:"Traditional", lrc:LRC(`
-[00:00.50]If you're happy and you know it, clap your hands
-[00:04.50]If you're happy and you know it, clap your hands
-[00:09.00]If you're happy and you know it, then your face will surely show it
-[00:14.00]If you're happy and you know it, clap your hands`)},
-    { title:"Ode to Joy", artist:"Ludwig van Beethoven", lrc:LRC(`
-[00:00.80]Joyful, joyful, we adore thee
-[00:04.80]God of glory, Lord of love
-[00:08.80]Hearts unfold like flowers before thee
-[00:12.80]Opening to the sun above`)},
-    { title:"Greensleeves", artist:"Traditional", lrc:LRC(`
-[00:00.80]Alas my love you do me wrong
-[00:05.00]To cast me off discourteously
-[00:09.20]And I have loved you oh so long
-[00:13.40]Delighting in your company
-[00:17.60]Greensleeves was all my joy
-[00:21.80]Greensleeves was my delight
-[00:26.00]Greensleeves was my heart of gold
-[00:30.20]And who but my lady Greensleeves`)},
-    { title:"Scarborough Fair", artist:"Traditional", lrc:LRC(`
-[00:00.80]Are you going to Scarborough Fair?
-[00:05.20]Parsley, sage, rosemary and thyme
-[00:09.60]Remember me to one who lives there
-[00:14.00]She once was a true love of mine`)},
-    { title:"The Star-Spangled Banner", artist:"Francis Scott Key", lrc:LRC(`
-[00:00.80]Oh say can you see, by the dawn's early light
-[00:06.00]What so proudly we hailed at the twilight's last gleaming
-[00:12.00]Whose broad stripes and bright stars, through the perilous fight
-[00:18.00]O'er the ramparts we watched, were so gallantly streaming`)},
-    { title:"Danny Boy", artist:"Frederic Weatherly", lrc:LRC(`
-[00:00.80]Oh Danny boy, the pipes, the pipes are calling
-[00:05.80]From glen to glen, and down the mountain side
-[00:11.00]The summer's gone, and all the roses falling
-[00:16.20]It's you, it's you must go and I must bide`)},
-    { title:"Yankee Doodle", artist:"Traditional", lrc:LRC(`
-[00:00.50]Yankee Doodle went to town
-[00:03.00]Riding on a pony
-[00:05.50]Stuck a feather in his cap
-[00:08.00]And called it macaroni
-[00:10.50]Yankee Doodle keep it up
-[00:13.00]Yankee Doodle dandy
-[00:15.50]Mind the music and the step
-[00:18.00]And with the girls be handy`)},
-  ];
+  /* =====================================================================
+   * Source of the songbook — Peder Bacher's repo, fetched live in the
+   * browser. We never mirror the lyrics; this repo stays the single
+   * source of truth and the songbook updates whenever he edits it.
+   * =================================================================== */
+  const SRC = {
+    owner: "pederbacher", repo: "songs", branch: "main", dir: "songs",
+    collection: "collection-primabacher_2026.txt",
+  };
+  const rawUrl = (file) =>
+    `https://raw.githubusercontent.com/${SRC.owner}/${SRC.repo}/${SRC.branch}/${SRC.dir}/${encodeURIComponent(file)}`;
+  const CACHE_KEY = "primakaraoke.songbook.v1";
+  const CACHE_TTL = 1000 * 60 * 60 * 12; // 12h
 
-  /* ---------------------------------------------------------------------
-   * LRC parsing
-   * ------------------------------------------------------------------- */
-  // Parse LRC text -> [{t:seconds, text}], sorted. Lines without a stamp
-  // are kept (text only) so plain lyrics still render.
-  function parseLRC(text){
-    const out = [];
-    const re = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
-    text.replace(/\r/g,"").split("\n").forEach(line=>{
-      const stamps = [];
-      let m, last = 0;
-      re.lastIndex = 0;
-      while((m = re.exec(line))){
-        const mm = +m[1], ss = +m[2], fr = m[3] ? +(("0."+m[3])) : 0;
-        stamps.push(mm*60 + ss + fr);
-        last = re.lastIndex;
-      }
-      const txt = line.slice(last).trim();
-      if(stamps.length){
-        stamps.forEach(t=> out.push({t, text:txt}));
-      } else if(txt || line.trim()===""){
-        out.push({t:null, text:txt});
-      }
-    });
-    out.sort((a,b)=>{
-      if(a.t==null && b.t==null) return 0;
-      if(a.t==null) return 1;
-      if(b.t==null) return -1;
-      return a.t-b.t;
-    });
-    return out;
-  }
+  /* =====================================================================
+   * Chord-sheet parsing
+   *   A song file is chords-above-lyrics text with [Section] headers.
+   *   We turn it into ordered "blocks": section | chord | lyric.
+   *   Only lyric blocks are advanceable "steps".
+   * =================================================================== */
+  // A chord token: starts with an uppercase root A–G, optional accidental,
+  // optional quality/extensions, optional slash bass. Anchored so ordinary
+  // words ("And", "Down", "She") are not mistaken for chords.
+  const CHORD_TOKEN = /^[A-G][#b♯♭]?(?:maj|min|m|M|sus|add|dim|aug|°|ø|\+|h)*\d*(?:sus\d|add\d|maj\d|m\d|\/\d)?(?:\/[A-G][#b♯♭]?)?$/;
+  const REPEAT_TOKEN = /^\(?(?:x\d+|\d+x|:\||\|:|\|)\)?$/i;
 
-  // Turn plain (un-timestamped) lyrics into evenly-paced timed lines.
-  function plainToTimed(text, perLine){
-    perLine = perLine || 3.2;
-    const lines = text.replace(/\r/g,"").split("\n");
-    let t = 0.5;
-    const out = [];
-    for(const raw of lines){
-      const s = raw.trim();
-      if(!s){ out.push({t:null, text:""}); continue; }
-      out.push({t:+t.toFixed(2), text:s});
-      t += perLine;
+  function isSection(line){ return /^\s*\[[^\]]+\]\s*$/.test(line); }
+  function sectionLabel(line){ return line.trim().replace(/^\[|\]$/g,""); }
+  function isMeta(line){ return /^\s*(tuning|key|capo)\s*:/i.test(line); }
+  function isChordLine(line){
+    const toks = line.trim().split(/\s+/).filter(Boolean);
+    if(!toks.length) return false;
+    let chords = 0;
+    for(const t of toks){
+      if(CHORD_TOKEN.test(t)) chords++;
+      else if(REPEAT_TOKEN.test(t)) { /* allowed filler */ }
+      else return false;
     }
-    return out;
+    return chords >= 1;
   }
 
-  function totalDuration(lines){
-    let max = 0;
-    for(const l of lines) if(l.t!=null && l.t>max) max=l.t;
-    return max + 4; // tail
+  function parseSong(text){
+    const lines = text.replace(/\r/g,"").split("\n");
+    const blocks = [];
+    let pendingChord = null, step = 0, started = false;
+    const flushChord = () => {
+      if(pendingChord != null){ blocks.push({kind:"chord", text:pendingChord}); pendingChord = null; }
+    };
+    for(let raw of lines){
+      const line = raw.replace(/\s+$/,"");
+      if(!started && (isMeta(line) || line.trim()==="")){ if(isMeta(line)) continue; }
+      if(line.trim()==="" ){ flushChord(); continue; }
+      if(isMeta(line)) continue;
+      started = true;
+      if(isSection(line)){ flushChord(); blocks.push({kind:"section", text:sectionLabel(line)}); continue; }
+      if(isChordLine(line)){
+        // two chord lines in a row -> the earlier one stands alone
+        flushChord(); pendingChord = line.replace(/^\s+/,""); continue;
+      }
+      // lyric line
+      blocks.push({kind:"lyric", text:line.trim(), chords: pendingChord, idx: step++});
+      pendingChord = null;
+    }
+    flushChord();
+    return { blocks, steps: step };
   }
 
-  function fmt(t){
-    t = Math.max(0, t|0);
-    const m = (t/60)|0, s = t%60;
-    return m + ":" + String(s).padStart(2,"0");
+  function titleArtistFromFile(file){
+    const base = file.replace(/\.txt$/i,"");
+    const parts = base.split("___");
+    const artist = (parts[0]||"").replace(/_/g," ").trim();
+    const title  = (parts.slice(1).join(" ")||parts[0]).replace(/_/g," ").replace(/\.(simple|advanced)$/,"").trim();
+    return { artist, title };
   }
 
-  /* ---------------------------------------------------------------------
-   * Player — a clock-driven lyric teleprompter
-   * ------------------------------------------------------------------- */
+  // Build a song object suitable for the player from chord-sheet text.
+  function songFromSheet(file, text){
+    const { artist, title } = titleArtistFromFile(file);
+    const parsed = parseSong(text);
+    return { artist, title, blocks: parsed.blocks, steps: parsed.steps, timed:false };
+  }
+
+  /* =====================================================================
+   * LRC parsing (for Search + Paste) -> lyric-only blocks, optional time
+   * =================================================================== */
+  function blocksFromLRC(text){
+    const re = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+    const rows = [];
+    text.replace(/\r/g,"").split("\n").forEach(line=>{
+      let m, last=0; const stamps=[]; re.lastIndex=0;
+      while((m=re.exec(line))){ stamps.push((+m[1])*60+(+m[2])+(m[3]?+("0."+m[3]):0)); last=re.lastIndex; }
+      const txt = line.slice(last).trim();
+      if(stamps.length) stamps.forEach(t=> rows.push({t, text:txt}));
+      else if(txt) rows.push({t:null, text:txt});
+    });
+    rows.sort((a,b)=> (a.t==null)-(b.t==null) || (a.t||0)-(b.t||0));
+    let step=0;
+    const blocks = rows.map(r=> ({kind:"lyric", text:r.text||"", chords:null, t:r.t, idx:step++}));
+    return { blocks, steps:step, timed: rows.some(r=>r.t!=null) };
+  }
+  function blocksFromPlain(text){
+    let step=0;
+    const blocks = text.replace(/\r/g,"").split("\n").map(l=>l.trim())
+      .filter((l,i,a)=> l!=="" || (i>0 && a[i-1]!=="")) // collapse runs of blanks
+      .map(l=> l==="" ? {kind:"gap"} : {kind:"lyric", text:l, chords:null, idx:step++});
+    return { blocks, steps:step, timed:false };
+  }
+
+  /* =====================================================================
+   * The Player
+   * =================================================================== */
+  const stage = document.getElementById("stage");
   const Player = {
-    lines: [], duration: 0, t: 0, playing:false, rate:1,
-    title:"", artist:"", raf:0, lastTs:0,
-    el:{},
+    song:null, step:0, mode:"manual", showChords:false,
+    raf:0, clock:0, lastTs:0, perLine:3.0, stepEls:[], lyricEls:[],
+    mic:{ stream:null, ctx:null, analyser:null, buf:null, raf:0, state:"idle", floor:0.01, sungPeak:0, sungMs:0, quietMs:0, lineMs:0 },
 
-    mount(container){
-      container.innerHTML = `
-        <div class="stage">
-          <div class="nowtitle">
-            <span class="t" id="pl-title">Nothing loaded</span>
-            <span class="a" id="pl-artist"></span>
+    build(){
+      stage.hidden = false;
+      stage.innerHTML = `
+        <div class="stagebar">
+          <div class="grow" style="min-width:0">
+            <div class="ttl" id="pl-title">—</div>
+            <div class="art" id="pl-artist"></div>
           </div>
-          <div class="lyricbox"><div class="lyricscroll" id="pl-scroll"></div></div>
-          <div class="controls">
-            <button class="iconbtn" id="pl-restart" title="Restart">⏮</button>
-            <button class="iconbtn big" id="pl-play" title="Play / pause">▶</button>
-            <span class="time" id="pl-time">0:00 / 0:00</span>
-            <input class="timeline" id="pl-seek" type="range" min="0" max="1000" value="0" />
-            <label class="small muted" style="display:flex;align-items:center;gap:6px">
-              Speed
-              <select id="pl-rate" style="width:auto;padding:6px 8px">
-                <option value="0.75">0.75×</option>
-                <option value="1" selected>1×</option>
-                <option value="1.25">1.25×</option>
-                <option value="1.5">1.5×</option>
-              </select>
-            </label>
+          <button class="iconbtn" id="pl-full" title="Full screen (F)">⤢</button>
+          <button class="iconbtn" id="pl-close" title="Close (Esc)">✕</button>
+        </div>
+        <div class="lyricbox"><div class="lyricscroll" id="pl-scroll"></div></div>
+        <div class="micbar" id="pl-micbar">
+          <span class="micdot"></span>
+          <span class="label">MIC ADVANCE</span>
+          <span class="state" id="pl-micstate">starting…</span>
+          <span class="level"><i id="pl-miclevel"></i></span>
+          <span class="heard" id="pl-heard">✓ next line</span>
+        </div>
+        <div class="controls">
+          <button class="iconbtn" id="pl-prev" title="Previous line (←)">⏮</button>
+          <button class="iconbtn big" id="pl-next" title="Next line (Space / →)">⏭</button>
+          <div class="seg" role="group" aria-label="Advance mode">
+            <button data-mode="manual" aria-pressed="true">Manual</button>
+            <button data-mode="auto" aria-pressed="false">Auto</button>
+            <button data-mode="mic" aria-pressed="false">🎤 Voice</button>
           </div>
-        </div>`;
+          <div class="progress"><i id="pl-bar"></i></div>
+          <span class="counter" id="pl-counter">0 / 0</span>
+          <label class="toggle"><input type="checkbox" id="pl-chords"> chords</label>
+          <label class="toggle" id="pl-speedwrap">speed
+            <select id="pl-speed" style="width:auto;padding:5px 7px">
+              <option value="0.7">0.7×</option><option value="0.85">0.85×</option>
+              <option value="1" selected>1×</option><option value="1.2">1.2×</option><option value="1.5">1.5×</option>
+            </select>
+          </label>
+        </div>
+        <div class="hint" id="pl-hint"></div>`;
       this.el = {
-        title: container.querySelector("#pl-title"),
-        artist: container.querySelector("#pl-artist"),
-        scroll: container.querySelector("#pl-scroll"),
-        box: container.querySelector(".lyricbox"),
-        play: container.querySelector("#pl-play"),
-        restart: container.querySelector("#pl-restart"),
-        time: container.querySelector("#pl-time"),
-        seek: container.querySelector("#pl-seek"),
-        rate: container.querySelector("#pl-rate"),
+        title:stage.querySelector("#pl-title"), artist:stage.querySelector("#pl-artist"),
+        scroll:stage.querySelector("#pl-scroll"), box:stage.querySelector(".lyricbox"),
+        prev:stage.querySelector("#pl-prev"), next:stage.querySelector("#pl-next"),
+        bar:stage.querySelector("#pl-bar"), counter:stage.querySelector("#pl-counter"),
+        chords:stage.querySelector("#pl-chords"), speed:stage.querySelector("#pl-speed"),
+        speedwrap:stage.querySelector("#pl-speedwrap"), hint:stage.querySelector("#pl-hint"),
+        micbar:stage.querySelector("#pl-micbar"), micstate:stage.querySelector("#pl-micstate"),
+        miclevel:stage.querySelector("#pl-miclevel"), heard:stage.querySelector("#pl-heard"),
+        full:stage.querySelector("#pl-full"), close:stage.querySelector("#pl-close"),
+        modeBtns:[...stage.querySelectorAll(".seg button")],
       };
-      this.el.play.onclick = ()=> this.toggle();
-      this.el.restart.onclick = ()=>{ this.t=0; this.render(); };
-      this.el.rate.onchange = ()=>{ this.rate = +this.el.rate.value; };
-      this.el.seek.oninput = ()=>{
-        this.t = (+this.el.seek.value/1000) * this.duration;
-        this.render();
-      };
+      this.el.next.onclick = ()=> this.next(true);
+      this.el.prev.onclick = ()=> this.prev();
+      this.el.full.onclick = ()=> this.toggleNativeFullscreen();
+      this.el.close.onclick = ()=> this.close();
+      this.el.chords.onchange = ()=>{ this.showChords = this.el.chords.checked; this.renderBlocks(); };
+      this.el.speed.onchange = ()=>{ this.perLineEff(); };
+      this.el.modeBtns.forEach(b=> b.onclick = ()=> this.setMode(b.dataset.mode));
+      this._built = true;
     },
 
-    load(title, artist, lines){
-      this.pause();
-      this.title = title; this.artist = artist || "";
-      this.lines = lines.length ? lines : [{t:0,text:"(no lyrics)"}];
-      this.duration = totalDuration(this.lines);
-      this.t = 0;
-      this.el.title.textContent = title;
-      this.el.artist.textContent = artist ? "— " + artist : "";
-      // build line elements
+    load(song){
+      if(!this._built) this.build();
+      this.stopAuto(); this.stopMic();
+      this.song = song; this.step = 0;
+      this.el.title.textContent = song.title || "Untitled";
+      this.el.artist.textContent = song.artist || "";
+      this.el.chords.parentElement.style.display = song.blocks.some(b=>b.kind==="chord"||b.chords) ? "" : "none";
+      this.renderBlocks();
+      this.expand(true);          // ← fuller screen the moment a song starts
+      this.setMode("manual");
+      this.update();
+      // focus stage for keyboard control
+      stage.tabIndex = -1; stage.focus({preventScroll:true});
+    },
+
+    renderBlocks(){
+      const s = this.song; if(!s) return;
       this.el.scroll.innerHTML = "";
-      this._lineEls = this.lines.map((l,i)=>{
+      this.lyricEls = [];
+      s.blocks.forEach((b)=>{
         const d = document.createElement("div");
-        d.className = "ln" + (l.text ? "" : " blank");
-        d.textContent = l.text || "";
-        d.dataset.i = i;
-        d.onclick = ()=>{ if(l.t!=null){ this.t=l.t; this.render(); } };
+        if(b.kind==="section"){ d.className="blk section"; d.textContent=b.text; }
+        else if(b.kind==="chord"){ d.className="blk chord"; d.textContent=b.text;
+          if(!this.showChords) d.style.display="none"; }
+        else if(b.kind==="gap"){ d.className="blk"; d.style.height=".5em"; }
+        else { // lyric
+          d.className="blk lyric"; d.dataset.idx=b.idx;
+          if(this.showChords && b.chords){
+            const c=document.createElement("span"); c.className="chordrow"; c.textContent=b.chords; d.appendChild(c);
+          }
+          d.appendChild(document.createTextNode(b.text||" "));
+          d.onclick = ()=>{ this.goto(b.idx); };
+          this.lyricEls[b.idx]=d;
+        }
         this.el.scroll.appendChild(d);
-        return d;
       });
-      this.render();
-      // auto-start for instant gratification
-      this.play();
+      this.update();
     },
 
-    currentIndex(){
-      let idx = -1;
-      for(let i=0;i<this.lines.length;i++){
-        const t = this.lines[i].t;
-        if(t!=null && t<=this.t+0.01) idx=i;
-      }
-      if(idx<0){ // before first stamp: highlight first text line
-        idx = this.lines.findIndex(l=>l.text);
-      }
-      return idx;
-    },
-
-    render(){
-      const idx = this.currentIndex();
-      const els = this._lineEls || [];
-      let activeEl = null;
-      els.forEach((d,i)=>{
-        d.classList.toggle("active", i===idx);
-        d.classList.toggle("past", i<idx);
-        if(i===idx) activeEl = d;
+    update(){
+      const s=this.song; if(!s) return;
+      const total = s.steps;
+      this.lyricEls.forEach((d,i)=>{
+        if(!d) return;
+        d.classList.toggle("active", i===this.step);
+        d.classList.toggle("past", i<this.step);
       });
-      // center active line
-      if(activeEl){
-        const boxH = this.el.box.clientHeight;
-        const y = activeEl.offsetTop + activeEl.offsetHeight/2;
-        this.el.scroll.style.transform = `translateY(${boxH/2 - y}px)`;
+      const active = this.lyricEls[this.step];
+      if(active){
+        const h=this.el.box.clientHeight;
+        const y=active.offsetTop + active.offsetHeight/2;
+        this.el.scroll.style.transform = `translateY(${h/2 - y}px)`;
       }
-      this.el.time.textContent = fmt(this.t) + " / " + fmt(this.duration);
-      this.el.seek.value = this.duration ? Math.round(this.t/this.duration*1000) : 0;
+      this.el.counter.textContent = (total? (this.step+1):0) + " / " + total;
+      this.el.bar.style.width = total>1 ? (this.step/(total-1)*100)+"%" : (total?100:0)+"%";
     },
 
-    toggle(){ this.playing ? this.pause() : this.play(); },
+    goto(i){
+      if(!this.song) return;
+      this.step = Math.max(0, Math.min(this.song.steps-1, i));
+      this.flash(); this.update();
+    },
+    next(user){ if(!this.song) return; if(this.step < this.song.steps-1){ this.step++; this.flash(); this.update(); } else if(user){ this.flash(); } },
+    prev(){ if(!this.song) return; if(this.step>0){ this.step--; this.update(); } },
+    flash(){ const a=this.lyricEls[this.step]; if(a){ a.classList.remove("flash"); void a.offsetWidth; a.classList.add("flash"); } },
 
-    play(){
-      if(this.playing) return;
-      if(this.t >= this.duration) this.t = 0;
-      this.playing = true;
-      this.el.play.textContent = "⏸";
+    /* ---- modes ---- */
+    setMode(mode){
+      this.mode = mode;
+      this.el.modeBtns.forEach(b=> b.setAttribute("aria-pressed", b.dataset.mode===mode ? "true":"false"));
+      this.stopAuto(); this.stopMic();
+      this.el.speedwrap.style.display = mode==="auto" ? "" : "none";
+      this.el.hint.textContent = mode==="manual"
+        ? "Manual: tap ⏭, press Space / → for the next line, ← to go back, or click any line."
+        : mode==="auto"
+        ? "Auto: lines advance on a steady pace (or the track's real timing for synced search results). Adjust speed at right."
+        : "Voice-advance: sing into the mic and each line advances when you finish it. Watch the red bar below.";
+      if(mode==="auto") this.startAuto();
+      if(mode==="mic") this.startMic();
+    },
+
+    perLineEff(){ return this.perLine / (parseFloat(this.el.speed.value)||1); },
+
+    startAuto(){
+      const s=this.song; if(!s) return;
+      this.clock = s.timed && this.lyricEls[this.step] ? (this.stepTime(this.step)||0) : this.step*this.perLineEff();
       this.lastTs = performance.now();
-      const tick = (ts)=>{
-        if(!this.playing) return;
-        const dt = (ts - this.lastTs)/1000;
-        this.lastTs = ts;
-        this.t += dt * this.rate;
-        if(this.t >= this.duration){ this.t = this.duration; this.render(); this.pause(); return; }
-        this.render();
-        this.raf = requestAnimationFrame(tick);
+      const tick=(ts)=>{
+        if(this.mode!=="auto"){ return; }
+        const dt=(ts-this.lastTs)/1000; this.lastTs=ts; this.clock+=dt;
+        if(s.timed){
+          // advance while next step's timestamp has passed
+          let n=this.step;
+          while(n < s.steps-1 && this.stepTime(n+1)!=null && this.clock >= this.stepTime(n+1)) n++;
+          if(n!==this.step){ this.step=n; this.flash(); this.update(); }
+          if(this.step>=s.steps-1 && this.clock > (this.stepTime(s.steps-1)||0)+4){ this.stopAuto(); return; }
+        } else {
+          const target = Math.floor(this.clock/this.perLineEff());
+          if(target>this.step){ this.step=Math.min(s.steps-1,target); this.flash(); this.update(); }
+          if(this.step>=s.steps-1){ this.stopAuto(); return; }
+        }
+        this.raf=requestAnimationFrame(tick);
       };
-      this.raf = requestAnimationFrame(tick);
+      this.raf=requestAnimationFrame(tick);
+    },
+    stepTime(i){ const b=this.song.blocks.find(x=>x.kind==="lyric"&&x.idx===i); return b? b.t : null; },
+    stopAuto(){ cancelAnimationFrame(this.raf); this.raf=0; },
+
+    /* ---- mic voice-advance ---- */
+    async startMic(){
+      const m=this.mic;
+      this.el.micbar.classList.add("on"); stage.classList.add("miclive");
+      this.el.micstate.textContent="requesting mic…";
+      try{
+        m.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+        m.ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const src=m.ctx.createMediaStreamSource(m.stream);
+        m.analyser=m.ctx.createAnalyser(); m.analyser.fftSize=1024; src.connect(m.analyser);
+        m.buf=new Float32Array(m.analyser.fftSize);
+        m.state="waiting"; m.floor=0.012; m.sungMs=0; m.quietMs=0; m.lineMs=0; m.sungPeak=0;
+        this.el.micstate.textContent="Listening — sing the line";
+        let last=performance.now();
+        const loop=()=>{
+          if(this.mode!=="mic"){ return; }
+          const now=performance.now(); const dt=now-last; last=now;
+          m.analyser.getFloatTimeDomainData(m.buf);
+          let sum=0; for(let i=0;i<m.buf.length;i++){ const v=m.buf[i]; sum+=v*v; }
+          const rms=Math.sqrt(sum/m.buf.length);
+          // adaptive noise floor (slow track downward, quick up handled by thresholds)
+          m.floor = Math.min(m.floor + 0.00002*dt, Math.max(0.008, m.floor*0.999));
+          if(rms < m.floor) m.floor += (rms - m.floor)*0.02;
+          const onset = m.floor*2.2 + 0.012;
+          const release = m.floor*1.6 + 0.006;
+          this.el.miclevel.style.width = Math.min(100, Math.round(rms*220))+"%";
+          m.lineMs += dt;
+          if(m.state==="waiting"){
+            if(rms>onset){ m.state="singing"; m.sungMs=0; m.quietMs=0; m.lineMs=0; this.el.micstate.textContent="Hearing you…"; }
+          } else { // singing
+            if(rms>onset){ m.sungMs+=dt; m.quietMs=0; }
+            else if(rms<release){ m.quietMs+=dt; }
+            // phrase finished: enough singing happened, then a clear gap, min line time elapsed
+            if(m.sungMs>180 && m.quietMs>480 && m.lineMs>1100){
+              this.advanceByMic();
+              m.state="waiting"; m.sungMs=0; m.quietMs=0; m.lineMs=0;
+              this.el.micstate.textContent = this.step>=this.song.steps-1 ? "End of song" : "Listening — next line";
+            }
+          }
+          m.raf=requestAnimationFrame(loop);
+        };
+        m.raf=requestAnimationFrame(loop);
+      }catch(err){
+        this.el.micstate.textContent="mic blocked";
+        this.el.hint.innerHTML = "Couldn’t access the microphone: <strong>"+esc(err.name||"")+" "+esc(err.message||"")+
+          "</strong>. Allow mic access for this site (or use Manual / Auto).";
+      }
+    },
+    advanceByMic(){
+      this.next(false);
+      const h=this.el.heard; h.classList.add("show"); setTimeout(()=>h.classList.remove("show"), 650);
+    },
+    stopMic(){
+      const m=this.mic; cancelAnimationFrame(m.raf); m.raf=0;
+      if(m.stream){ m.stream.getTracks().forEach(t=>t.stop()); m.stream=null; }
+      if(m.ctx){ m.ctx.close().catch(()=>{}); m.ctx=null; }
+      m.state="idle";
+      this.el.micbar.classList.remove("on"); stage.classList.remove("miclive");
+      this.el.miclevel.style.width="0%";
     },
 
-    pause(){
-      this.playing = false;
-      if(this.el.play) this.el.play.textContent = "▶";
-      cancelAnimationFrame(this.raf);
+    /* ---- presentation ---- */
+    expand(on){
+      stage.classList.toggle("expanded", on!==false);
+      document.body.style.overflow = stage.classList.contains("expanded") ? "hidden" : "";
+      requestAnimationFrame(()=>this.update());
+    },
+    toggleNativeFullscreen(){
+      const el=stage;
+      if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document); }
+    },
+    close(){
+      this.stopAuto(); this.stopMic();
+      if(document.fullscreenElement) this.toggleNativeFullscreen();
+      this.expand(false);
+      stage.hidden = true;
     },
   };
 
-  /* ---------------------------------------------------------------------
-   * Views
-   * ------------------------------------------------------------------- */
-  const view = document.getElementById("view");
-  const tabsEl = document.getElementById("tabs");
-  let activeTab = "songbook";
+  // keyboard control while the stage is up
+  document.addEventListener("keydown",(e)=>{
+    if(stage.hidden) return;
+    if(e.key===" "||e.key==="ArrowRight"){ e.preventDefault(); Player.next(true); }
+    else if(e.key==="ArrowLeft"){ e.preventDefault(); Player.prev(); }
+    else if(e.key==="Escape"){ if(stage.classList.contains("expanded")) Player.close(); }
+    else if(e.key==="f"||e.key==="F"){ Player.toggleNativeFullscreen(); }
+  });
 
-  function toast(msg, ms){
-    let t = document.querySelector(".toast");
-    if(t) t.remove();
-    t = document.createElement("div");
-    t.className = "toast";
-    t.innerHTML = msg;
-    document.body.appendChild(t);
-    if(ms!==0) setTimeout(()=>t.remove(), ms||3200);
-    return t;
+  /* =====================================================================
+   * Views / tabs
+   * =================================================================== */
+  const view=document.getElementById("view");
+  const tabsEl=document.getElementById("tabs");
+  let activeTab="songbook";
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>(
+    {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function toast(msg,ms){ let t=document.querySelector(".toast"); if(t)t.remove();
+    t=document.createElement("div"); t.className="toast"; t.innerHTML=msg; document.body.appendChild(t);
+    if(ms!==0) setTimeout(()=>t.remove(),ms||3200); }
+
+  /* ---- Songbook (live from pederbacher/songs) ---- */
+  let songbook=null, loadingBook=false;
+
+  async function fetchSongbook(force){
+    if(!force){
+      try{
+        const c=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");
+        if(c && c.ts && (Date.now()-c.ts)<CACHE_TTL && Array.isArray(c.songs) && c.songs.length){
+          return c.songs;
+        }
+      }catch(_){}
+    }
+    const cres = await fetch(rawUrl(SRC.collection), {headers:{Accept:"text/plain"}});
+    if(!cres.ok) throw new Error("collection "+cres.status);
+    const files=[]; const seen=new Set();
+    (await cres.text()).split("\n").map(s=>s.trim()).forEach(f=>{
+      if(f && !seen.has(f)){ seen.add(f); files.push(f); }
+    });
+    const results = await Promise.allSettled(files.map(async f=>{
+      const r=await fetch(rawUrl(f),{headers:{Accept:"text/plain"}});
+      if(!r.ok) throw new Error(f+" "+r.status);
+      return songFromSheet(f, await r.text());
+    }));
+    const songs = results.filter(r=>r.status==="fulfilled" && r.value.steps>0).map(r=>r.value);
+    if(!songs.length) throw new Error("no songs parsed");
+    try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), songs})); }catch(_){}
+    return songs;
   }
 
-  // Open a song in the player, switching to a transient "Now Playing" panel
-  // rendered below whatever tab launched it.
-  function openInPlayer(title, artist, lines){
-    setTab("songbook"); // player lives under songbook view's stage
-    // Render songbook then attach a player at top
-    renderSongbook(true);
-    const stageHost = document.getElementById("player-host");
-    Player.mount(stageHost);
-    Player.load(title, artist, lines);
-    stageHost.scrollIntoView({behavior:"smooth", block:"start"});
-  }
-
-  function renderSongbook(withPlayerHost){
-    activeTab = "songbook";
-    view.innerHTML = `
-      <div id="player-host"></div>
-      <div class="panel" style="margin-top:14px">
+  async function renderSongbook(){
+    activeTab="songbook";
+    view.innerHTML = `<div class="panel">
         <div class="row" style="justify-content:space-between">
-          <strong>Songbook</strong>
-          <span class="pill">${SONGS.length} songs</span>
+          <strong>Songbook — Primavera 2026</strong>
+          <span class="row" style="gap:8px">
+            <span class="pill" id="sb-count">loading…</span>
+            <button class="btn ghost small" id="sb-refresh" title="Reload from source">↻ refresh</button>
+          </span>
         </div>
         <p class="muted small" style="margin:8px 0 4px">
-          Tap a song to load it into the teleprompter. These are traditional / public-domain lyrics with
-          built-in timing — they scroll without any network.
+          Loaded live from Peder Bacher's
+          <a href="https://github.com/pederbacher/songs" target="_blank" rel="noopener">songs repo</a>.
+          Tap a song to open the full-screen teleprompter.
         </p>
-        <div class="songgrid" id="songgrid"></div>
+        <div id="sb-body"></div>
       </div>`;
-    const grid = view.querySelector("#songgrid");
-    SONGS.forEach((s)=>{
-      const b = document.createElement("button");
-      b.className = "song";
-      b.innerHTML = `<div class="t">${esc(s.title)}</div>
-                     <div class="a">${esc(s.artist)}</div>
-                     <div class="meta"><span class="pill">synced</span></div>`;
-      b.onclick = ()=>{
-        const host = document.getElementById("player-host");
-        Player.mount(host);
-        Player.load(s.title, s.artist, parseLRC(s.lrc));
-        host.scrollIntoView({behavior:"smooth", block:"start"});
-      };
-      grid.appendChild(b);
-    });
-    if(!withPlayerHost){
-      // nothing extra
-    }
+    view.querySelector("#sb-refresh").onclick = ()=> loadBook(true);
+    loadBook(false);
   }
 
-  let searchAbort = null;
+  async function loadBook(force){
+    const body=view.querySelector("#sb-body"), count=view.querySelector("#sb-count");
+    if(!body) return;
+    body.innerHTML = `<div class="muted small" style="padding:10px 0"><span class="spinner"></span> Fetching songbook…</div>`;
+    if(loadingBook) return; loadingBook=true;
+    try{
+      songbook = await fetchSongbook(force);
+      count.textContent = songbook.length + " songs";
+      const grid=document.createElement("div"); grid.className="songgrid";
+      songbook.forEach((s,i)=>{
+        const b=document.createElement("button"); b.className="song";
+        b.innerHTML = `<div class="n">${String(i+1).padStart(2,"0")}</div>
+          <div class="t">${esc(s.title)}</div><div class="a">${esc(s.artist)}</div>`;
+        b.onclick = ()=> Player.load(s);
+        grid.appendChild(b);
+      });
+      body.innerHTML=""; body.appendChild(grid);
+    }catch(err){
+      count.textContent="error";
+      body.innerHTML = `<div class="panel" style="border-color:var(--bad)">
+        <strong>Couldn’t load the songbook.</strong>
+        <p class="muted small" style="margin:8px 0 0">${esc(String(err.message||err))}.
+        This is a sandboxed-preview block or a network hiccup; on the deployed page it loads from
+        <a href="https://github.com/pederbacher/songs" target="_blank" rel="noopener">pederbacher/songs</a>.
+        <button class="btn small" id="sb-retry" style="margin-top:8px">Retry</button></p></div>`;
+      const rt=body.querySelector("#sb-retry"); if(rt) rt.onclick=()=>loadBook(true);
+    }finally{ loadingBook=false; }
+  }
+
+  /* ---- Search (LRCLIB) ---- */
+  let searchAbort=null;
   function renderSearch(){
-    activeTab = "search";
-    view.innerHTML = `
-      <div id="player-host"></div>
-      <div class="panel" style="margin-top:14px">
+    activeTab="search";
+    view.innerHTML = `<div class="panel">
         <strong>Search lyrics</strong>
         <p class="muted small" style="margin:8px 0 12px">
-          Live search of the free <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a> database.
-          Results with <span class="pill">synced</span> have real timestamps and scroll in time.
-          (Requires a normal https page — works once deployed; may be blocked inside sandboxed previews.)
+          Live search of <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a>. Results tagged
+          <span class="pill">synced</span> scroll on the track's real timing in Auto mode.
         </p>
-        <form class="row" id="searchform">
-          <input class="grow" type="search" id="q" placeholder="Song title and/or artist, e.g. Bohemian Rhapsody Queen" autocomplete="off" />
-          <button class="btn primary" type="submit">Search</button>
-        </form>
-        <div class="results" id="results"></div>
-      </div>`;
-    const form = view.querySelector("#searchform");
-    const q = view.querySelector("#q");
-    const results = view.querySelector("#results");
-    form.onsubmit = async (e)=>{
-      e.preventDefault();
-      const query = q.value.trim();
-      if(!query) return;
-      if(searchAbort) searchAbort.abort();
-      searchAbort = new AbortController();
-      results.innerHTML = `<div class="muted small"><span class="spinner"></span> Searching…</div>`;
+        <form class="row" id="sf"><input class="grow" type="search" id="q" placeholder="Title and/or artist…" autocomplete="off"/>
+          <button class="btn primary" type="submit">Search</button></form>
+        <div class="results" id="results"></div></div>`;
+    const f=view.querySelector("#sf"), q=view.querySelector("#q"), results=view.querySelector("#results");
+    f.onsubmit=async(e)=>{ e.preventDefault(); const query=q.value.trim(); if(!query)return;
+      if(searchAbort) searchAbort.abort(); searchAbort=new AbortController();
+      results.innerHTML=`<div class="muted small"><span class="spinner"></span> Searching…</div>`;
       try{
-        const r = await fetch("https://lrclib.net/api/search?q=" + encodeURIComponent(query),
-                              { signal: searchAbort.signal, headers:{ "Accept":"application/json" }});
-        if(!r.ok) throw new Error("HTTP " + r.status);
-        const data = await r.json();
-        renderResults(results, data);
-      }catch(err){
-        if(err.name === "AbortError") return;
-        results.innerHTML = `<div class="panel" style="border-color:var(--bad)">
-          <strong>Couldn’t reach the lyric provider.</strong>
-          <p class="muted small" style="margin:8px 0 0">
-            ${esc(String(err.message||err))}. This usually means the page is running inside a sandboxed
-            preview that blocks outside requests. On the deployed GitHub Pages URL this works normally.
-            Meanwhile, use <a href="#" id="gotopaste">Paste lyrics</a> or the Songbook.
-          </p></div>`;
-        const gp = results.querySelector("#gotopaste");
-        if(gp) gp.onclick = (ev)=>{ ev.preventDefault(); setTab("paste"); };
-      }
+        const r=await fetch("https://lrclib.net/api/search?q="+encodeURIComponent(query),{signal:searchAbort.signal,headers:{Accept:"application/json"}});
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        renderResults(results, await r.json());
+      }catch(err){ if(err.name==="AbortError")return;
+        results.innerHTML=`<div class="panel" style="border-color:var(--bad)"><strong>Couldn’t reach the lyric provider.</strong>
+          <p class="muted small" style="margin:8px 0 0">${esc(String(err.message||err))}. Works on the deployed page; sandboxes may block it.</p></div>`; }
     };
     q.focus();
   }
-
-  function renderResults(host, data){
-    if(!Array.isArray(data) || !data.length){
-      host.innerHTML = `<div class="muted small">No matches. Try just the title, or add the artist.</div>`;
-      return;
-    }
-    host.innerHTML = "";
+  function renderResults(host,data){
+    if(!Array.isArray(data)||!data.length){ host.innerHTML=`<div class="muted small">No matches.</div>`; return; }
+    host.innerHTML="";
     data.slice(0,25).forEach(item=>{
-      const hasSync = !!item.syncedLyrics;
-      const hasPlain = !!item.plainLyrics;
-      const row = document.createElement("div");
-      row.className = "result";
-      const dur = item.duration ? fmt(item.duration) : "";
-      row.innerHTML = `
-        <div>
-          <div class="t">${esc(item.trackName||"Unknown")}</div>
-          <div class="a">${esc(item.artistName||"")}${dur?` · ${dur}`:""}</div>
-          <div class="meta" style="margin-top:6px">
-            ${hasSync?'<span class="pill">synced</span>':''}
-            ${(!hasSync&&hasPlain)?'<span class="pill">plain</span>':''}
-            ${(!hasSync&&!hasPlain)?'<span class="pill">no lyrics</span>':''}
-          </div>
-        </div>`;
-      const btn = document.createElement("button");
-      btn.className = "btn" + (hasSync||hasPlain ? " primary":"");
-      btn.textContent = hasSync||hasPlain ? "Load" : "—";
-      btn.disabled = !(hasSync||hasPlain);
-      btn.onclick = ()=>{
-        const lines = hasSync ? parseLRC(item.syncedLyrics)
-                              : plainToTimed(item.plainLyrics || "");
-        const host2 = document.getElementById("player-host");
-        Player.mount(host2);
-        Player.load(item.trackName||"Untitled", item.artistName||"", lines);
-        host2.scrollIntoView({behavior:"smooth", block:"start"});
-      };
-      row.appendChild(btn);
-      host.appendChild(row);
+      const sync=!!item.syncedLyrics, plain=!!item.plainLyrics;
+      const row=document.createElement("div"); row.className="result";
+      row.innerHTML=`<div><div class="t">${esc(item.trackName||"Unknown")}</div>
+        <div class="a">${esc(item.artistName||"")}</div>
+        <div style="margin-top:6px">${sync?'<span class="pill">synced</span>':plain?'<span class="pill">plain</span>':'<span class="pill">no lyrics</span>'}</div></div>`;
+      const btn=document.createElement("button"); btn.className="btn"+((sync||plain)?" primary":"");
+      btn.textContent=(sync||plain)?"Open":"—"; btn.disabled=!(sync||plain);
+      btn.onclick=()=>{ const parsed= sync?blocksFromLRC(item.syncedLyrics):blocksFromPlain(item.plainLyrics||"");
+        Player.load({title:item.trackName||"Untitled", artist:item.artistName||"", blocks:parsed.blocks, steps:parsed.steps, timed:parsed.timed}); };
+      row.appendChild(btn); host.appendChild(row);
     });
   }
 
+  /* ---- Paste ---- */
   function renderPaste(){
-    activeTab = "paste";
-    view.innerHTML = `
-      <div id="player-host"></div>
-      <div class="panel" style="margin-top:14px">
-        <strong>Paste your own lyrics</strong>
-        <p class="muted small" style="margin:8px 0 12px">
-          Works everywhere, no network needed. Paste plain lyrics (one line each — they’ll be paced evenly),
-          or paste LRC text with <code>[mm:ss.xx]</code> timestamps for exact timing.
-        </p>
-        <div class="row" style="margin-bottom:10px">
-          <input class="grow" type="text" id="pt-title" placeholder="Title (optional)" />
-          <input class="grow" type="text" id="pt-artist" placeholder="Artist (optional)" />
-        </div>
-        <textarea id="pt-text" placeholder="Paste lyrics here…
-Or LRC:
-[00:00.50]First line
-[00:03.00]Second line"></textarea>
-        <div class="row" style="margin-top:10px;justify-content:space-between">
-          <label class="small muted" style="display:flex;align-items:center;gap:8px">
-            Seconds per line (plain lyrics)
-            <input type="text" id="pt-pace" value="3.2" style="width:70px" />
-          </label>
-          <button class="btn primary" id="pt-load">Load into teleprompter</button>
-        </div>
-      </div>`;
-    view.querySelector("#pt-load").onclick = ()=>{
-      const txt = view.querySelector("#pt-text").value;
-      if(!txt.trim()){ toast("Paste some lyrics first."); return; }
-      const title = view.querySelector("#pt-title").value.trim() || "Pasted lyrics";
-      const artist = view.querySelector("#pt-artist").value.trim();
-      const pace = parseFloat(view.querySelector("#pt-pace").value) || 3.2;
-      const hasStamps = /\[\d{1,2}:\d{2}/.test(txt);
-      const lines = hasStamps ? parseLRC(txt) : plainToTimed(txt, pace);
-      const host = document.getElementById("player-host");
-      Player.mount(host);
-      Player.load(title, artist, lines);
-      host.scrollIntoView({behavior:"smooth", block:"start"});
+    activeTab="paste";
+    view.innerHTML=`<div class="panel">
+      <strong>Paste your own lyrics</strong>
+      <p class="muted small" style="margin:8px 0 12px">Plain lines (paced evenly) or LRC text with <code>[mm:ss.xx]</code> timestamps. Works offline.</p>
+      <div class="row" style="margin-bottom:10px">
+        <input class="grow" type="text" id="pt-title" placeholder="Title (optional)"/>
+        <input class="grow" type="text" id="pt-artist" placeholder="Artist (optional)"/></div>
+      <textarea id="pt-text" placeholder="Paste lyrics here…"></textarea>
+      <div class="row" style="margin-top:10px;justify-content:flex-end">
+        <button class="btn primary" id="pt-load">Open in teleprompter</button></div></div>`;
+    view.querySelector("#pt-load").onclick=()=>{
+      const txt=view.querySelector("#pt-text").value; if(!txt.trim()){ toast("Paste some lyrics first."); return; }
+      const title=view.querySelector("#pt-title").value.trim()||"Pasted lyrics";
+      const artist=view.querySelector("#pt-artist").value.trim();
+      const parsed = /\[\d{1,2}:\d{2}/.test(txt)? blocksFromLRC(txt) : blocksFromPlain(txt);
+      Player.load({title,artist,blocks:parsed.blocks,steps:parsed.steps,timed:parsed.timed});
     };
   }
 
-  /* -------- Mic check (Web Audio: level + pitch) -------- */
-  const Mic = { stream:null, ctx:null, analyser:null, raf:0, buf:null };
-  const NOTE_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
-
-  function renderMic(){
-    activeTab = "mic";
-    view.innerHTML = `
-      <div class="panel">
-        <strong>Mic check</strong>
-        <p class="muted small" style="margin:8px 0 12px">
-          Arms your microphone to show input level and detected pitch — handy for a sound check before you sing.
-          Your browser will ask for permission the first time. Audio is processed locally and never leaves your device.
-          (On a deployed https page this works; sandboxed previews may block mic access.)
-        </p>
-        <div class="row" style="gap:8px">
-          <button class="btn primary" id="mic-start">Arm microphone</button>
-          <button class="btn ghost" id="mic-stop" disabled>Stop</button>
-          <span class="pill" id="mic-state">idle</span>
-        </div>
-        <div class="meterwrap">
-          <div class="small muted" style="margin:14px 0 6px">Input level</div>
-          <div class="bar"><i id="mic-level"></i></div>
-          <div style="display:flex;align-items:center;gap:18px;margin-top:18px">
-            <div class="note" id="mic-note">—</div>
-            <div class="grow">
-              <div class="small muted">Pitch (flat ◀ in tune ▶ sharp)</div>
-              <div class="cents"><div class="mid"></div><i id="mic-cents"></i></div>
-              <div class="small muted" id="mic-hz" style="margin-top:6px">—</div>
-            </div>
-          </div>
-        </div>
-        <div class="hint" id="mic-hint"></div>
-      </div>`;
-    const start = view.querySelector("#mic-start");
-    const stop = view.querySelector("#mic-stop");
-    const state = view.querySelector("#mic-state");
-    const levelEl = view.querySelector("#mic-level");
-    const noteEl = view.querySelector("#mic-note");
-    const centsEl = view.querySelector("#mic-cents");
-    const hzEl = view.querySelector("#mic-hz");
-    const hint = view.querySelector("#mic-hint");
-
-    start.onclick = async ()=>{
-      hint.textContent = "";
-      try{
-        Mic.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false } });
-        Mic.ctx = new (window.AudioContext||window.webkitAudioContext)();
-        const src = Mic.ctx.createMediaStreamSource(Mic.stream);
-        Mic.analyser = Mic.ctx.createAnalyser();
-        Mic.analyser.fftSize = 2048;
-        src.connect(Mic.analyser);
-        Mic.buf = new Float32Array(Mic.analyser.fftSize);
-        state.textContent = "listening";
-        start.disabled = true; stop.disabled = false;
-        const loop = ()=>{
-          Mic.analyser.getFloatTimeDomainData(Mic.buf);
-          // RMS level
-          let sum=0; for(let i=0;i<Mic.buf.length;i++){ const v=Mic.buf[i]; sum+=v*v; }
-          const rms = Math.sqrt(sum/Mic.buf.length);
-          const pct = Math.min(100, Math.round(rms*180));
-          levelEl.style.width = pct + "%";
-          // pitch
-          const f = autoCorrelate(Mic.buf, Mic.ctx.sampleRate);
-          if(f>0){
-            const { name, cents } = freqToNote(f);
-            noteEl.textContent = name;
-            hzEl.textContent = f.toFixed(1) + " Hz · " + (cents>=0?"+":"") + cents + "¢";
-            centsEl.style.left = (50 + Math.max(-50,Math.min(50,cents))) + "%";
-          } else if(pct < 4){
-            noteEl.textContent = "—"; hzEl.textContent = "—";
-          }
-          Mic.raf = requestAnimationFrame(loop);
-        };
-        loop();
-      }catch(err){
-        state.textContent = "blocked";
-        hint.innerHTML = `Couldn’t access the microphone: <strong>${esc(err.name||"")} ${esc(err.message||"")}</strong>.
-          If this is a sandboxed preview, try the deployed page; otherwise check the browser’s mic permission for this site.`;
-      }
-    };
-    stop.onclick = ()=> stopMic(state, start, stop, levelEl, noteEl, hzEl);
-  }
-
-  function stopMic(state, start, stop, levelEl, noteEl, hzEl){
-    cancelAnimationFrame(Mic.raf);
-    if(Mic.stream){ Mic.stream.getTracks().forEach(t=>t.stop()); Mic.stream=null; }
-    if(Mic.ctx){ Mic.ctx.close(); Mic.ctx=null; }
-    if(state) state.textContent="idle";
-    if(start) start.disabled=false;
-    if(stop) stop.disabled=true;
-    if(levelEl) levelEl.style.width="0%";
-    if(noteEl) noteEl.textContent="—";
-    if(hzEl) hzEl.textContent="—";
-  }
-
-  // Autocorrelation pitch detection (returns frequency Hz or -1)
-  function autoCorrelate(buf, sampleRate){
-    let size = buf.length, rms=0;
-    for(let i=0;i<size;i++){ rms += buf[i]*buf[i]; }
-    rms = Math.sqrt(rms/size);
-    if(rms < 0.01) return -1; // too quiet
-    let r1=0, r2=size-1, thres=0.2;
-    for(let i=0;i<size/2;i++){ if(Math.abs(buf[i])<thres){ r1=i; break; } }
-    for(let i=1;i<size/2;i++){ if(Math.abs(buf[size-i])<thres){ r2=size-i; break; } }
-    const b = buf.slice(r1, r2);
-    const n = b.length;
-    const c = new Array(n).fill(0);
-    for(let lag=0; lag<n; lag++){
-      for(let i=0;i<n-lag;i++){ c[lag] += b[i]*b[i+lag]; }
-    }
-    let d=0; while(d<n-1 && c[d]>c[d+1]) d++;
-    let maxval=-1, maxpos=-1;
-    for(let i=d;i<n;i++){ if(c[i]>maxval){ maxval=c[i]; maxpos=i; } }
-    let T0 = maxpos;
-    if(T0<=0) return -1;
-    // parabolic interpolation
-    const x1=c[T0-1]||0, x2=c[T0], x3=c[T0+1]||0;
-    const a=(x1+x3-2*x2)/2, bb=(x3-x1)/2;
-    if(a) T0 = T0 - bb/(2*a);
-    const freq = sampleRate/T0;
-    return (freq>50 && freq<2000) ? freq : -1;
-  }
-
-  function freqToNote(f){
-    const midi = Math.round(69 + 12*Math.log2(f/440));
-    const refFreq = 440 * Math.pow(2,(midi-69)/12);
-    const cents = Math.round(1200*Math.log2(f/refFreq));
-    const name = NOTE_NAMES[(midi%12+12)%12] + (Math.floor(midi/12)-1);
-    return { name, cents };
-  }
-
-  /* ---------------------------------------------------------------------
-   * Tab routing
-   * ------------------------------------------------------------------- */
   function setTab(tab){
-    // tear down mic if leaving
-    if(activeTab==="mic" && tab!=="mic") stopMic();
-    activeTab = tab;
-    [...tabsEl.querySelectorAll("button")].forEach(b=>{
-      b.setAttribute("aria-selected", b.dataset.tab===tab ? "true":"false");
-    });
+    activeTab=tab;
+    [...tabsEl.querySelectorAll("button")].forEach(b=> b.setAttribute("aria-selected", b.dataset.tab===tab?"true":"false"));
     if(tab==="songbook") renderSongbook();
     else if(tab==="search") renderSearch();
     else if(tab==="paste") renderPaste();
-    else if(tab==="mic") renderMic();
-    window.scrollTo({top:0, behavior:"instant"});
+    window.scrollTo({top:0});
   }
+  tabsEl.addEventListener("click",e=>{ const b=e.target.closest("button[data-tab]"); if(b) setTab(b.dataset.tab); });
 
-  tabsEl.addEventListener("click", e=>{
-    const b = e.target.closest("button[data-tab]");
-    if(b) setTab(b.dataset.tab);
-  });
-
-  function esc(s){
-    return String(s==null?"":s).replace(/[&<>"']/g, c=>(
-      {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-
-  // boot
   setTab("songbook");
-  window.__KARAOKE_READY__ = true;
+  window.__KARAOKE_READY__=true;
 })();
 </script>
 </body>

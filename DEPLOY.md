@@ -38,7 +38,15 @@ If you'd rather not use Actions:
 - **Lyric search** uses the free [LRCLIB](https://lrclib.net) API. It works on a
   normal https page (like GitHub Pages); some sandboxed in-app previews block the
   outbound request.
-- **Mic check** uses the browser microphone via `getUserMedia`; the browser will
-  prompt for permission the first time. Audio is processed locally and never sent
-  anywhere.
-- The **Songbook** and **Paste lyrics** tabs work entirely offline.
+- The **Songbook** is loaded live in the browser from Peder Bacher's
+  [`pederbacher/songs`](https://github.com/pederbacher/songs) repo (the
+  `collection-primabacher_2026` set). The chord sheets are parsed client-side, and
+  the result is cached in `localStorage`, so the songbook updates whenever Peder
+  edits his source — nothing is mirrored into this repo.
+- The player opens in an immersive full-screen view and offers three advance modes:
+  **Manual** (Space/→, ←, or click a line), **Auto** (steady pace, or a synced
+  track's real timing), and **🎤 Voice** — sing and each line advances when you
+  finish it, with a loud pulsing indicator and live level meter so it's obvious the
+  mic is driving. Arming the mic prompts for permission once; audio is processed
+  locally and never leaves the device.
+- **Paste lyrics** works entirely offline.
