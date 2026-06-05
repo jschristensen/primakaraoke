@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Prima Karaoke</title>
+<meta name="description" content="A self-contained karaoke teleprompter: built-in songbook, live lyric search, paste-your-own lyrics, and a mic level/pitch meter." />
+<style>
+  :root{
+    --bg:#0b0f1a; --bg2:#121a2e; --panel:#161f38; --panel2:#1d2a4a;
+    --ink:#eaf0ff; --muted:#9fb0d6; --line:#26345b;
+    --accent:#56b6ff; --accent2:#a06bff; --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --hi:#ffe45e;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 800px at 80% -10%, #1a2a55 0%, transparent 60%),
+                linear-gradient(160deg,var(--bg),var(--bg2));
+    color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent)}
+  #app{max-width:980px;margin:0 auto;padding:18px 16px 80px;min-height:100%}
+  header.top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .logo{width:42px;height:42px;border-radius:12px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-size:22px;box-shadow:0 6px 24px rgba(86,182,255,.35)}
+  .brand h1{margin:0;font-size:20px;letter-spacing:.3px}
+  .brand p{margin:0;color:var(--muted);font-size:12.5px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px}
+  .tabs button{
+    appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--muted);
+    padding:8px 14px;border-radius:999px;cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s}
+  .tabs button:hover{color:var(--ink);border-color:#33446b}
+  .tabs button[aria-selected="true"]{
+    color:#06101f;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:16px;padding:16px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grow{flex:1 1 auto}
+  input[type=text],input[type=search],textarea,select{
+    width:100%;background:#0d1426;border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:11px 12px;font-size:14px;outline:none}
+  input:focus,textarea:focus{border-color:var(--accent)}
+  textarea{min-height:160px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.45}
+  button.btn{appearance:none;cursor:pointer;border:1px solid var(--line);background:var(--panel2);
+    color:var(--ink);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;transition:.15s}
+  button.btn:hover{border-color:var(--accent)}
+  button.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06101f;border-color:transparent}
+  button.btn.ghost{background:transparent}
+  button.btn:disabled{opacity:.45;cursor:not-allowed}
+  .muted{color:var(--muted)}
+  .small{font-size:12.5px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:#0d1426;border:1px solid var(--line);
+    font-size:11.5px;color:var(--muted)}
+  /* songbook */
+  .songgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:6px}
+  .song{
+    text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--panel);
+    border-radius:12px;padding:12px 13px;transition:.15s}
+  .song:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .song .t{font-weight:700}
+  .song .a{color:var(--muted);font-size:12.5px}
+  .song .meta{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  /* search results */
+  .results{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  .result{display:flex;gap:12px;align-items:center;justify-content:space-between;
+    border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:11px 13px}
+  .result .t{font-weight:600}
+  .result .a{color:var(--muted);font-size:12.5px}
+  /* player */
+  .stage{margin-top:14px}
+  .nowtitle{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .nowtitle .t{font-size:18px;font-weight:800}
+  .nowtitle .a{color:var(--muted)}
+  .lyricbox{
+    position:relative;height:min(56vh,460px);overflow:hidden;border-radius:14px;
+    background:radial-gradient(120% 80% at 50% 0%,#16224a 0%,#0c1326 70%);
+    border:1px solid var(--line);padding:0 18px}
+  .lyricscroll{position:absolute;left:0;right:0;padding:42% 22px;transition:transform .35s ease;text-align:center}
+  .lyricscroll .ln{font-size:20px;line-height:1.7;color:#7e8db5;transition:color .2s, transform .2s, opacity .2s;opacity:.65}
+  .lyricscroll .ln.active{color:var(--hi);opacity:1;font-weight:800;font-size:23px;text-shadow:0 0 22px rgba(255,228,94,.35)}
+  .lyricscroll .ln.past{opacity:.35}
+  .lyricscroll .ln.blank{height:.6em}
+  .controls{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .timeline{flex:1 1 220px;min-width:160px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px;min-width:84px;text-align:center}
+  .iconbtn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:18px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer}
+  .iconbtn.big{width:58px;height:58px;font-size:22px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#06101f;border-color:transparent}
+  /* mic */
+  .meterwrap{margin-top:10px}
+  .bar{height:18px;border-radius:999px;background:#0d1426;border:1px solid var(--line);overflow:hidden}
+  .bar > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--good),var(--warn),var(--bad));transition:width .06s linear}
+  .note{font-size:46px;font-weight:800;letter-spacing:1px}
+  .cents{height:10px;border-radius:999px;background:#0d1426;border:1px solid var(--line);position:relative;overflow:hidden;margin-top:6px}
+  .cents > i{position:absolute;top:0;bottom:0;width:3px;background:var(--accent);left:50%;transform:translateX(-50%);transition:left .08s linear}
+  .cents .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3a4a72}
+  .hint{margin-top:12px;color:var(--muted);font-size:12.5px}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0d1426;border:1px solid var(--line);
+    padding:10px 16px;border-radius:12px;color:var(--ink);box-shadow:0 10px 40px rgba(0,0,0,.5);z-index:50;font-size:13.5px;max-width:90vw}
+  footer.foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
+  .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
+    display:inline-block;animation:spin .8s linear infinite;vertical-align:-3px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo">🎤</div>
+    <div class="brand">
+      <h1>Prima Karaoke</h1>
+      <p>Built-in songbook · live lyric search · paste your own · mic meter</p>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="songbook" aria-selected="true">Songbook</button>
+    <button role="tab" data-tab="search" aria-selected="false">Search lyrics</button>
+    <button role="tab" data-tab="paste" aria-selected="false">Paste lyrics</button>
+    <button role="tab" data-tab="mic" aria-selected="false">Mic check</button>
+  </nav>
+
+  <main id="view"></main>
+
+  <footer class="foot">
+    Prima Karaoke — a single static page. Lyric search uses the free
+    <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a> API. Built-in songs are
+    traditional / public-domain. No audio is stored or streamed; this is a synced lyric teleprompter.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------------------
+   * Built-in songbook — traditional / public-domain songs.
+   * Lyrics use LRC timestamps so the teleprompter scrolls in time.
+   * ------------------------------------------------------------------- */
+  const LRC = (s) => s.trim();
+  const SONGS = [
+    { title:"Twinkle, Twinkle, Little Star", artist:"Traditional", lrc:LRC(`
+[00:00.50]Twinkle, twinkle, little star
+[00:03.50]How I wonder what you are
+[00:06.50]Up above the world so high
+[00:09.50]Like a diamond in the sky
+[00:12.50]Twinkle, twinkle, little star
+[00:15.50]How I wonder what you are`)},
+    { title:"Row, Row, Row Your Boat", artist:"Traditional", lrc:LRC(`
+[00:00.50]Row, row, row your boat
+[00:03.00]Gently down the stream
+[00:05.50]Merrily, merrily, merrily, merrily
+[00:08.50]Life is but a dream`)},
+    { title:"Mary Had a Little Lamb", artist:"Traditional", lrc:LRC(`
+[00:00.50]Mary had a little lamb
+[00:03.00]Little lamb, little lamb
+[00:05.50]Mary had a little lamb
+[00:08.00]Its fleece was white as snow`)},
+    { title:"Jingle Bells", artist:"James Lord Pierpont", lrc:LRC(`
+[00:00.50]Dashing through the snow
+[00:02.80]In a one-horse open sleigh
+[00:05.40]O'er the fields we go
+[00:07.80]Laughing all the way
+[00:10.40]Bells on bobtails ring
+[00:12.80]Making spirits bright
+[00:15.40]What fun it is to ride and sing
+[00:18.40]A sleighing song tonight
+[00:21.40]Jingle bells, jingle bells
+[00:24.00]Jingle all the way
+[00:26.60]Oh what fun it is to ride
+[00:29.40]In a one-horse open sleigh`)},
+    { title:"Amazing Grace", artist:"John Newton", lrc:LRC(`
+[00:00.80]Amazing grace, how sweet the sound
+[00:05.00]That saved a wretch like me
+[00:09.20]I once was lost, but now am found
+[00:13.40]Was blind, but now I see`)},
+    { title:"Auld Lang Syne", artist:"Robert Burns", lrc:LRC(`
+[00:00.80]Should auld acquaintance be forgot
+[00:04.80]And never brought to mind?
+[00:08.80]Should auld acquaintance be forgot
+[00:12.80]And auld lang syne?
+[00:16.80]For auld lang syne, my dear
+[00:20.80]For auld lang syne
+[00:24.80]We'll take a cup of kindness yet
+[00:28.80]For auld lang syne`)},
+    { title:"When the Saints Go Marching In", artist:"Traditional", lrc:LRC(`
+[00:00.50]Oh, when the saints go marching in
+[00:04.00]Oh, when the saints go marching in
+[00:08.00]Oh, how I want to be in that number
+[00:12.00]When the saints go marching in`)},
+    { title:"You Are My Sunshine", artist:"Traditional", lrc:LRC(`
+[00:00.50]You are my sunshine, my only sunshine
+[00:04.50]You make me happy when skies are gray
+[00:08.50]You'll never know, dear, how much I love you
+[00:12.50]Please don't take my sunshine away`)},
+    { title:"She'll Be Coming 'Round the Mountain", artist:"Traditional", lrc:LRC(`
+[00:00.50]She'll be coming 'round the mountain when she comes
+[00:04.50]She'll be coming 'round the mountain when she comes
+[00:08.50]She'll be coming 'round the mountain
+[00:10.50]She'll be coming 'round the mountain
+[00:12.50]She'll be coming 'round the mountain when she comes`)},
+    { title:"Oh! Susanna", artist:"Stephen Foster", lrc:LRC(`
+[00:00.50]I come from Alabama with my banjo on my knee
+[00:05.00]I'm going to Louisiana, my true love for to see
+[00:09.50]It rained all night the day I left, the weather it was dry
+[00:14.00]The sun so hot I froze to death, Susanna don't you cry
+[00:18.50]Oh, Susanna, oh don't you cry for me
+[00:22.50]For I come from Alabama with my banjo on my knee`)},
+    { title:"Home on the Range", artist:"Traditional", lrc:LRC(`
+[00:00.80]Oh give me a home where the buffalo roam
+[00:05.20]Where the deer and the antelope play
+[00:09.60]Where seldom is heard a discouraging word
+[00:14.00]And the skies are not cloudy all day
+[00:18.40]Home, home on the range
+[00:22.40]Where the deer and the antelope play
+[00:26.80]Where seldom is heard a discouraging word
+[00:31.20]And the skies are not cloudy all day`)},
+    { title:"Clementine", artist:"Traditional", lrc:LRC(`
+[00:00.50]In a cavern, in a canyon, excavating for a mine
+[00:05.50]Dwelt a miner, forty-niner, and his daughter Clementine
+[00:10.50]Oh my darling, oh my darling, oh my darling Clementine
+[00:15.50]You are lost and gone forever, dreadful sorry, Clementine`)},
+    { title:"Camptown Races", artist:"Stephen Foster", lrc:LRC(`
+[00:00.50]The Camptown ladies sing this song, doo-dah, doo-dah
+[00:04.50]The Camptown racetrack five miles long, oh the doo-dah day
+[00:08.50]Going to run all night, going to run all day
+[00:12.50]I bet my money on the bob-tail nag, somebody bet on the bay`)},
+    { title:"My Bonnie Lies Over the Ocean", artist:"Traditional", lrc:LRC(`
+[00:00.50]My Bonnie lies over the ocean
+[00:03.50]My Bonnie lies over the sea
+[00:06.50]My Bonnie lies over the ocean
+[00:09.50]Oh bring back my Bonnie to me
+[00:12.50]Bring back, bring back
+[00:15.00]Bring back my Bonnie to me, to me
+[00:18.50]Bring back, bring back
+[00:21.00]Oh bring back my Bonnie to me`)},
+    { title:"Down by the Riverside", artist:"Traditional", lrc:LRC(`
+[00:00.50]Gonna lay down my burden
+[00:03.50]Down by the riverside
+[00:07.00]Down by the riverside
+[00:10.00]Down by the riverside
+[00:13.00]Gonna lay down my burden
+[00:16.00]Down by the riverside
+[00:19.50]Gonna study war no more`)},
+    { title:"This Little Light of Mine", artist:"Traditional", lrc:LRC(`
+[00:00.50]This little light of mine
+[00:03.00]I'm gonna let it shine
+[00:05.50]This little light of mine
+[00:08.00]I'm gonna let it shine
+[00:10.50]This little light of mine
+[00:13.00]I'm gonna let it shine
+[00:15.50]Let it shine, let it shine, let it shine`)},
+    { title:"Frère Jacques", artist:"Traditional", lrc:LRC(`
+[00:00.50]Frère Jacques, Frère Jacques
+[00:03.50]Dormez-vous? Dormez-vous?
+[00:06.50]Sonnez les matines, sonnez les matines
+[00:10.00] Din, dan, don. Din, dan, don.`)},
+    { title:"London Bridge Is Falling Down", artist:"Traditional", lrc:LRC(`
+[00:00.50]London Bridge is falling down
+[00:03.00]Falling down, falling down
+[00:05.50]London Bridge is falling down
+[00:08.00]My fair lady`)},
+    { title:"The Wheels on the Bus", artist:"Traditional", lrc:LRC(`
+[00:00.50]The wheels on the bus go round and round
+[00:04.00]Round and round, round and round
+[00:07.50]The wheels on the bus go round and round
+[00:11.00]All through the town`)},
+    { title:"Old MacDonald Had a Farm", artist:"Traditional", lrc:LRC(`
+[00:00.50]Old MacDonald had a farm, E-I-E-I-O
+[00:04.50]And on his farm he had a cow, E-I-E-I-O
+[00:09.00]With a moo-moo here and a moo-moo there
+[00:13.00]Here a moo, there a moo, everywhere a moo-moo
+[00:17.50]Old MacDonald had a farm, E-I-E-I-O`)},
+    { title:"If You're Happy and You Know It", artist:"Traditional", lrc:LRC(`
+[00:00.50]If you're happy and you know it, clap your hands
+[00:04.50]If you're happy and you know it, clap your hands
+[00:09.00]If you're happy and you know it, then your face will surely show it
+[00:14.00]If you're happy and you know it, clap your hands`)},
+    { title:"Ode to Joy", artist:"Ludwig van Beethoven", lrc:LRC(`
+[00:00.80]Joyful, joyful, we adore thee
+[00:04.80]God of glory, Lord of love
+[00:08.80]Hearts unfold like flowers before thee
+[00:12.80]Opening to the sun above`)},
+    { title:"Greensleeves", artist:"Traditional", lrc:LRC(`
+[00:00.80]Alas my love you do me wrong
+[00:05.00]To cast me off discourteously
+[00:09.20]And I have loved you oh so long
+[00:13.40]Delighting in your company
+[00:17.60]Greensleeves was all my joy
+[00:21.80]Greensleeves was my delight
+[00:26.00]Greensleeves was my heart of gold
+[00:30.20]And who but my lady Greensleeves`)},
+    { title:"Scarborough Fair", artist:"Traditional", lrc:LRC(`
+[00:00.80]Are you going to Scarborough Fair?
+[00:05.20]Parsley, sage, rosemary and thyme
+[00:09.60]Remember me to one who lives there
+[00:14.00]She once was a true love of mine`)},
+    { title:"The Star-Spangled Banner", artist:"Francis Scott Key", lrc:LRC(`
+[00:00.80]Oh say can you see, by the dawn's early light
+[00:06.00]What so proudly we hailed at the twilight's last gleaming
+[00:12.00]Whose broad stripes and bright stars, through the perilous fight
+[00:18.00]O'er the ramparts we watched, were so gallantly streaming`)},
+    { title:"Danny Boy", artist:"Frederic Weatherly", lrc:LRC(`
+[00:00.80]Oh Danny boy, the pipes, the pipes are calling
+[00:05.80]From glen to glen, and down the mountain side
+[00:11.00]The summer's gone, and all the roses falling
+[00:16.20]It's you, it's you must go and I must bide`)},
+    { title:"Yankee Doodle", artist:"Traditional", lrc:LRC(`
+[00:00.50]Yankee Doodle went to town
+[00:03.00]Riding on a pony
+[00:05.50]Stuck a feather in his cap
+[00:08.00]And called it macaroni
+[00:10.50]Yankee Doodle keep it up
+[00:13.00]Yankee Doodle dandy
+[00:15.50]Mind the music and the step
+[00:18.00]And with the girls be handy`)},
+  ];
+
+  /* ---------------------------------------------------------------------
+   * LRC parsing
+   * ------------------------------------------------------------------- */
+  // Parse LRC text -> [{t:seconds, text}], sorted. Lines without a stamp
+  // are kept (text only) so plain lyrics still render.
+  function parseLRC(text){
+    const out = [];
+    const re = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+    text.replace(/\r/g,"").split("\n").forEach(line=>{
+      const stamps = [];
+      let m, last = 0;
+      re.lastIndex = 0;
+      while((m = re.exec(line))){
+        const mm = +m[1], ss = +m[2], fr = m[3] ? +(("0."+m[3])) : 0;
+        stamps.push(mm*60 + ss + fr);
+        last = re.lastIndex;
+      }
+      const txt = line.slice(last).trim();
+      if(stamps.length){
+        stamps.forEach(t=> out.push({t, text:txt}));
+      } else if(txt || line.trim()===""){
+        out.push({t:null, text:txt});
+      }
+    });
+    out.sort((a,b)=>{
+      if(a.t==null && b.t==null) return 0;
+      if(a.t==null) return 1;
+      if(b.t==null) return -1;
+      return a.t-b.t;
+    });
+    return out;
+  }
+
+  // Turn plain (un-timestamped) lyrics into evenly-paced timed lines.
+  function plainToTimed(text, perLine){
+    perLine = perLine || 3.2;
+    const lines = text.replace(/\r/g,"").split("\n");
+    let t = 0.5;
+    const out = [];
+    for(const raw of lines){
+      const s = raw.trim();
+      if(!s){ out.push({t:null, text:""}); continue; }
+      out.push({t:+t.toFixed(2), text:s});
+      t += perLine;
+    }
+    return out;
+  }
+
+  function totalDuration(lines){
+    let max = 0;
+    for(const l of lines) if(l.t!=null && l.t>max) max=l.t;
+    return max + 4; // tail
+  }
+
+  function fmt(t){
+    t = Math.max(0, t|0);
+    const m = (t/60)|0, s = t%60;
+    return m + ":" + String(s).padStart(2,"0");
+  }
+
+  /* ---------------------------------------------------------------------
+   * Player — a clock-driven lyric teleprompter
+   * ------------------------------------------------------------------- */
+  const Player = {
+    lines: [], duration: 0, t: 0, playing:false, rate:1,
+    title:"", artist:"", raf:0, lastTs:0,
+    el:{},
+
+    mount(container){
+      container.innerHTML = `
+        <div class="stage">
+          <div class="nowtitle">
+            <span class="t" id="pl-title">Nothing loaded</span>
+            <span class="a" id="pl-artist"></span>
+          </div>
+          <div class="lyricbox"><div class="lyricscroll" id="pl-scroll"></div></div>
+          <div class="controls">
+            <button class="iconbtn" id="pl-restart" title="Restart">⏮</button>
+            <button class="iconbtn big" id="pl-play" title="Play / pause">▶</button>
+            <span class="time" id="pl-time">0:00 / 0:00</span>
+            <input class="timeline" id="pl-seek" type="range" min="0" max="1000" value="0" />
+            <label class="small muted" style="display:flex;align-items:center;gap:6px">
+              Speed
+              <select id="pl-rate" style="width:auto;padding:6px 8px">
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+              </select>
+            </label>
+          </div>
+        </div>`;
+      this.el = {
+        title: container.querySelector("#pl-title"),
+        artist: container.querySelector("#pl-artist"),
+        scroll: container.querySelector("#pl-scroll"),
+        box: container.querySelector(".lyricbox"),
+        play: container.querySelector("#pl-play"),
+        restart: container.querySelector("#pl-restart"),
+        time: container.querySelector("#pl-time"),
+        seek: container.querySelector("#pl-seek"),
+        rate: container.querySelector("#pl-rate"),
+      };
+      this.el.play.onclick = ()=> this.toggle();
+      this.el.restart.onclick = ()=>{ this.t=0; this.render(); };
+      this.el.rate.onchange = ()=>{ this.rate = +this.el.rate.value; };
+      this.el.seek.oninput = ()=>{
+        this.t = (+this.el.seek.value/1000) * this.duration;
+        this.render();
+      };
+    },
+
+    load(title, artist, lines){
+      this.pause();
+      this.title = title; this.artist = artist || "";
+      this.lines = lines.length ? lines : [{t:0,text:"(no lyrics)"}];
+      this.duration = totalDuration(this.lines);
+      this.t = 0;
+      this.el.title.textContent = title;
+      this.el.artist.textContent = artist ? "— " + artist : "";
+      // build line elements
+      this.el.scroll.innerHTML = "";
+      this._lineEls = this.lines.map((l,i)=>{
+        const d = document.createElement("div");
+        d.className = "ln" + (l.text ? "" : " blank");
+        d.textContent = l.text || "";
+        d.dataset.i = i;
+        d.onclick = ()=>{ if(l.t!=null){ this.t=l.t; this.render(); } };
+        this.el.scroll.appendChild(d);
+        return d;
+      });
+      this.render();
+      // auto-start for instant gratification
+      this.play();
+    },
+
+    currentIndex(){
+      let idx = -1;
+      for(let i=0;i<this.lines.length;i++){
+        const t = this.lines[i].t;
+        if(t!=null && t<=this.t+0.01) idx=i;
+      }
+      if(idx<0){ // before first stamp: highlight first text line
+        idx = this.lines.findIndex(l=>l.text);
+      }
+      return idx;
+    },
+
+    render(){
+      const idx = this.currentIndex();
+      const els = this._lineEls || [];
+      let activeEl = null;
+      els.forEach((d,i)=>{
+        d.classList.toggle("active", i===idx);
+        d.classList.toggle("past", i<idx);
+        if(i===idx) activeEl = d;
+      });
+      // center active line
+      if(activeEl){
+        const boxH = this.el.box.clientHeight;
+        const y = activeEl.offsetTop + activeEl.offsetHeight/2;
+        this.el.scroll.style.transform = `translateY(${boxH/2 - y}px)`;
+      }
+      this.el.time.textContent = fmt(this.t) + " / " + fmt(this.duration);
+      this.el.seek.value = this.duration ? Math.round(this.t/this.duration*1000) : 0;
+    },
+
+    toggle(){ this.playing ? this.pause() : this.play(); },
+
+    play(){
+      if(this.playing) return;
+      if(this.t >= this.duration) this.t = 0;
+      this.playing = true;
+      this.el.play.textContent = "⏸";
+      this.lastTs = performance.now();
+      const tick = (ts)=>{
+        if(!this.playing) return;
+        const dt = (ts - this.lastTs)/1000;
+        this.lastTs = ts;
+        this.t += dt * this.rate;
+        if(this.t >= this.duration){ this.t = this.duration; this.render(); this.pause(); return; }
+        this.render();
+        this.raf = requestAnimationFrame(tick);
+      };
+      this.raf = requestAnimationFrame(tick);
+    },
+
+    pause(){
+      this.playing = false;
+      if(this.el.play) this.el.play.textContent = "▶";
+      cancelAnimationFrame(this.raf);
+    },
+  };
+
+  /* ---------------------------------------------------------------------
+   * Views
+   * ------------------------------------------------------------------- */
+  const view = document.getElementById("view");
+  const tabsEl = document.getElementById("tabs");
+  let activeTab = "songbook";
+
+  function toast(msg, ms){
+    let t = document.querySelector(".toast");
+    if(t) t.remove();
+    t = document.createElement("div");
+    t.className = "toast";
+    t.innerHTML = msg;
+    document.body.appendChild(t);
+    if(ms!==0) setTimeout(()=>t.remove(), ms||3200);
+    return t;
+  }
+
+  // Open a song in the player, switching to a transient "Now Playing" panel
+  // rendered below whatever tab launched it.
+  function openInPlayer(title, artist, lines){
+    setTab("songbook"); // player lives under songbook view's stage
+    // Render songbook then attach a player at top
+    renderSongbook(true);
+    const stageHost = document.getElementById("player-host");
+    Player.mount(stageHost);
+    Player.load(title, artist, lines);
+    stageHost.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function renderSongbook(withPlayerHost){
+    activeTab = "songbook";
+    view.innerHTML = `
+      <div id="player-host"></div>
+      <div class="panel" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between">
+          <strong>Songbook</strong>
+          <span class="pill">${SONGS.length} songs</span>
+        </div>
+        <p class="muted small" style="margin:8px 0 4px">
+          Tap a song to load it into the teleprompter. These are traditional / public-domain lyrics with
+          built-in timing — they scroll without any network.
+        </p>
+        <div class="songgrid" id="songgrid"></div>
+      </div>`;
+    const grid = view.querySelector("#songgrid");
+    SONGS.forEach((s)=>{
+      const b = document.createElement("button");
+      b.className = "song";
+      b.innerHTML = `<div class="t">${esc(s.title)}</div>
+                     <div class="a">${esc(s.artist)}</div>
+                     <div class="meta"><span class="pill">synced</span></div>`;
+      b.onclick = ()=>{
+        const host = document.getElementById("player-host");
+        Player.mount(host);
+        Player.load(s.title, s.artist, parseLRC(s.lrc));
+        host.scrollIntoView({behavior:"smooth", block:"start"});
+      };
+      grid.appendChild(b);
+    });
+    if(!withPlayerHost){
+      // nothing extra
+    }
+  }
+
+  let searchAbort = null;
+  function renderSearch(){
+    activeTab = "search";
+    view.innerHTML = `
+      <div id="player-host"></div>
+      <div class="panel" style="margin-top:14px">
+        <strong>Search lyrics</strong>
+        <p class="muted small" style="margin:8px 0 12px">
+          Live search of the free <a href="https://lrclib.net" target="_blank" rel="noopener">LRCLIB</a> database.
+          Results with <span class="pill">synced</span> have real timestamps and scroll in time.
+          (Requires a normal https page — works once deployed; may be blocked inside sandboxed previews.)
+        </p>
+        <form class="row" id="searchform">
+          <input class="grow" type="search" id="q" placeholder="Song title and/or artist, e.g. Bohemian Rhapsody Queen" autocomplete="off" />
+          <button class="btn primary" type="submit">Search</button>
+        </form>
+        <div class="results" id="results"></div>
+      </div>`;
+    const form = view.querySelector("#searchform");
+    const q = view.querySelector("#q");
+    const results = view.querySelector("#results");
+    form.onsubmit = async (e)=>{
+      e.preventDefault();
+      const query = q.value.trim();
+      if(!query) return;
+      if(searchAbort) searchAbort.abort();
+      searchAbort = new AbortController();
+      results.innerHTML = `<div class="muted small"><span class="spinner"></span> Searching…</div>`;
+      try{
+        const r = await fetch("https://lrclib.net/api/search?q=" + encodeURIComponent(query),
+                              { signal: searchAbort.signal, headers:{ "Accept":"application/json" }});
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json();
+        renderResults(results, data);
+      }catch(err){
+        if(err.name === "AbortError") return;
+        results.innerHTML = `<div class="panel" style="border-color:var(--bad)">
+          <strong>Couldn’t reach the lyric provider.</strong>
+          <p class="muted small" style="margin:8px 0 0">
+            ${esc(String(err.message||err))}. This usually means the page is running inside a sandboxed
+            preview that blocks outside requests. On the deployed GitHub Pages URL this works normally.
+            Meanwhile, use <a href="#" id="gotopaste">Paste lyrics</a> or the Songbook.
+          </p></div>`;
+        const gp = results.querySelector("#gotopaste");
+        if(gp) gp.onclick = (ev)=>{ ev.preventDefault(); setTab("paste"); };
+      }
+    };
+    q.focus();
+  }
+
+  function renderResults(host, data){
+    if(!Array.isArray(data) || !data.length){
+      host.innerHTML = `<div class="muted small">No matches. Try just the title, or add the artist.</div>`;
+      return;
+    }
+    host.innerHTML = "";
+    data.slice(0,25).forEach(item=>{
+      const hasSync = !!item.syncedLyrics;
+      const hasPlain = !!item.plainLyrics;
+      const row = document.createElement("div");
+      row.className = "result";
+      const dur = item.duration ? fmt(item.duration) : "";
+      row.innerHTML = `
+        <div>
+          <div class="t">${esc(item.trackName||"Unknown")}</div>
+          <div class="a">${esc(item.artistName||"")}${dur?` · ${dur}`:""}</div>
+          <div class="meta" style="margin-top:6px">
+            ${hasSync?'<span class="pill">synced</span>':''}
+            ${(!hasSync&&hasPlain)?'<span class="pill">plain</span>':''}
+            ${(!hasSync&&!hasPlain)?'<span class="pill">no lyrics</span>':''}
+          </div>
+        </div>`;
+      const btn = document.createElement("button");
+      btn.className = "btn" + (hasSync||hasPlain ? " primary":"");
+      btn.textContent = hasSync||hasPlain ? "Load" : "—";
+      btn.disabled = !(hasSync||hasPlain);
+      btn.onclick = ()=>{
+        const lines = hasSync ? parseLRC(item.syncedLyrics)
+                              : plainToTimed(item.plainLyrics || "");
+        const host2 = document.getElementById("player-host");
+        Player.mount(host2);
+        Player.load(item.trackName||"Untitled", item.artistName||"", lines);
+        host2.scrollIntoView({behavior:"smooth", block:"start"});
+      };
+      row.appendChild(btn);
+      host.appendChild(row);
+    });
+  }
+
+  function renderPaste(){
+    activeTab = "paste";
+    view.innerHTML = `
+      <div id="player-host"></div>
+      <div class="panel" style="margin-top:14px">
+        <strong>Paste your own lyrics</strong>
+        <p class="muted small" style="margin:8px 0 12px">
+          Works everywhere, no network needed. Paste plain lyrics (one line each — they’ll be paced evenly),
+          or paste LRC text with <code>[mm:ss.xx]</code> timestamps for exact timing.
+        </p>
+        <div class="row" style="margin-bottom:10px">
+          <input class="grow" type="text" id="pt-title" placeholder="Title (optional)" />
+          <input class="grow" type="text" id="pt-artist" placeholder="Artist (optional)" />
+        </div>
+        <textarea id="pt-text" placeholder="Paste lyrics here…
+Or LRC:
+[00:00.50]First line
+[00:03.00]Second line"></textarea>
+        <div class="row" style="margin-top:10px;justify-content:space-between">
+          <label class="small muted" style="display:flex;align-items:center;gap:8px">
+            Seconds per line (plain lyrics)
+            <input type="text" id="pt-pace" value="3.2" style="width:70px" />
+          </label>
+          <button class="btn primary" id="pt-load">Load into teleprompter</button>
+        </div>
+      </div>`;
+    view.querySelector("#pt-load").onclick = ()=>{
+      const txt = view.querySelector("#pt-text").value;
+      if(!txt.trim()){ toast("Paste some lyrics first."); return; }
+      const title = view.querySelector("#pt-title").value.trim() || "Pasted lyrics";
+      const artist = view.querySelector("#pt-artist").value.trim();
+      const pace = parseFloat(view.querySelector("#pt-pace").value) || 3.2;
+      const hasStamps = /\[\d{1,2}:\d{2}/.test(txt);
+      const lines = hasStamps ? parseLRC(txt) : plainToTimed(txt, pace);
+      const host = document.getElementById("player-host");
+      Player.mount(host);
+      Player.load(title, artist, lines);
+      host.scrollIntoView({behavior:"smooth", block:"start"});
+    };
+  }
+
+  /* -------- Mic check (Web Audio: level + pitch) -------- */
+  const Mic = { stream:null, ctx:null, analyser:null, raf:0, buf:null };
+  const NOTE_NAMES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+
+  function renderMic(){
+    activeTab = "mic";
+    view.innerHTML = `
+      <div class="panel">
+        <strong>Mic check</strong>
+        <p class="muted small" style="margin:8px 0 12px">
+          Arms your microphone to show input level and detected pitch — handy for a sound check before you sing.
+          Your browser will ask for permission the first time. Audio is processed locally and never leaves your device.
+          (On a deployed https page this works; sandboxed previews may block mic access.)
+        </p>
+        <div class="row" style="gap:8px">
+          <button class="btn primary" id="mic-start">Arm microphone</button>
+          <button class="btn ghost" id="mic-stop" disabled>Stop</button>
+          <span class="pill" id="mic-state">idle</span>
+        </div>
+        <div class="meterwrap">
+          <div class="small muted" style="margin:14px 0 6px">Input level</div>
+          <div class="bar"><i id="mic-level"></i></div>
+          <div style="display:flex;align-items:center;gap:18px;margin-top:18px">
+            <div class="note" id="mic-note">—</div>
+            <div class="grow">
+              <div class="small muted">Pitch (flat ◀ in tune ▶ sharp)</div>
+              <div class="cents"><div class="mid"></div><i id="mic-cents"></i></div>
+              <div class="small muted" id="mic-hz" style="margin-top:6px">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="hint" id="mic-hint"></div>
+      </div>`;
+    const start = view.querySelector("#mic-start");
+    const stop = view.querySelector("#mic-stop");
+    const state = view.querySelector("#mic-state");
+    const levelEl = view.querySelector("#mic-level");
+    const noteEl = view.querySelector("#mic-note");
+    const centsEl = view.querySelector("#mic-cents");
+    const hzEl = view.querySelector("#mic-hz");
+    const hint = view.querySelector("#mic-hint");
+
+    start.onclick = async ()=>{
+      hint.textContent = "";
+      try{
+        Mic.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false } });
+        Mic.ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const src = Mic.ctx.createMediaStreamSource(Mic.stream);
+        Mic.analyser = Mic.ctx.createAnalyser();
+        Mic.analyser.fftSize = 2048;
+        src.connect(Mic.analyser);
+        Mic.buf = new Float32Array(Mic.analyser.fftSize);
+        state.textContent = "listening";
+        start.disabled = true; stop.disabled = false;
+        const loop = ()=>{
+          Mic.analyser.getFloatTimeDomainData(Mic.buf);
+          // RMS level
+          let sum=0; for(let i=0;i<Mic.buf.length;i++){ const v=Mic.buf[i]; sum+=v*v; }
+          const rms = Math.sqrt(sum/Mic.buf.length);
+          const pct = Math.min(100, Math.round(rms*180));
+          levelEl.style.width = pct + "%";
+          // pitch
+          const f = autoCorrelate(Mic.buf, Mic.ctx.sampleRate);
+          if(f>0){
+            const { name, cents } = freqToNote(f);
+            noteEl.textContent = name;
+            hzEl.textContent = f.toFixed(1) + " Hz · " + (cents>=0?"+":"") + cents + "¢";
+            centsEl.style.left = (50 + Math.max(-50,Math.min(50,cents))) + "%";
+          } else if(pct < 4){
+            noteEl.textContent = "—"; hzEl.textContent = "—";
+          }
+          Mic.raf = requestAnimationFrame(loop);
+        };
+        loop();
+      }catch(err){
+        state.textContent = "blocked";
+        hint.innerHTML = `Couldn’t access the microphone: <strong>${esc(err.name||"")} ${esc(err.message||"")}</strong>.
+          If this is a sandboxed preview, try the deployed page; otherwise check the browser’s mic permission for this site.`;
+      }
+    };
+    stop.onclick = ()=> stopMic(state, start, stop, levelEl, noteEl, hzEl);
+  }
+
+  function stopMic(state, start, stop, levelEl, noteEl, hzEl){
+    cancelAnimationFrame(Mic.raf);
+    if(Mic.stream){ Mic.stream.getTracks().forEach(t=>t.stop()); Mic.stream=null; }
+    if(Mic.ctx){ Mic.ctx.close(); Mic.ctx=null; }
+    if(state) state.textContent="idle";
+    if(start) start.disabled=false;
+    if(stop) stop.disabled=true;
+    if(levelEl) levelEl.style.width="0%";
+    if(noteEl) noteEl.textContent="—";
+    if(hzEl) hzEl.textContent="—";
+  }
+
+  // Autocorrelation pitch detection (returns frequency Hz or -1)
+  function autoCorrelate(buf, sampleRate){
+    let size = buf.length, rms=0;
+    for(let i=0;i<size;i++){ rms += buf[i]*buf[i]; }
+    rms = Math.sqrt(rms/size);
+    if(rms < 0.01) return -1; // too quiet
+    let r1=0, r2=size-1, thres=0.2;
+    for(let i=0;i<size/2;i++){ if(Math.abs(buf[i])<thres){ r1=i; break; } }
+    for(let i=1;i<size/2;i++){ if(Math.abs(buf[size-i])<thres){ r2=size-i; break; } }
+    const b = buf.slice(r1, r2);
+    const n = b.length;
+    const c = new Array(n).fill(0);
+    for(let lag=0; lag<n; lag++){
+      for(let i=0;i<n-lag;i++){ c[lag] += b[i]*b[i+lag]; }
+    }
+    let d=0; while(d<n-1 && c[d]>c[d+1]) d++;
+    let maxval=-1, maxpos=-1;
+    for(let i=d;i<n;i++){ if(c[i]>maxval){ maxval=c[i]; maxpos=i; } }
+    let T0 = maxpos;
+    if(T0<=0) return -1;
+    // parabolic interpolation
+    const x1=c[T0-1]||0, x2=c[T0], x3=c[T0+1]||0;
+    const a=(x1+x3-2*x2)/2, bb=(x3-x1)/2;
+    if(a) T0 = T0 - bb/(2*a);
+    const freq = sampleRate/T0;
+    return (freq>50 && freq<2000) ? freq : -1;
+  }
+
+  function freqToNote(f){
+    const midi = Math.round(69 + 12*Math.log2(f/440));
+    const refFreq = 440 * Math.pow(2,(midi-69)/12);
+    const cents = Math.round(1200*Math.log2(f/refFreq));
+    const name = NOTE_NAMES[(midi%12+12)%12] + (Math.floor(midi/12)-1);
+    return { name, cents };
+  }
+
+  /* ---------------------------------------------------------------------
+   * Tab routing
+   * ------------------------------------------------------------------- */
+  function setTab(tab){
+    // tear down mic if leaving
+    if(activeTab==="mic" && tab!=="mic") stopMic();
+    activeTab = tab;
+    [...tabsEl.querySelectorAll("button")].forEach(b=>{
+      b.setAttribute("aria-selected", b.dataset.tab===tab ? "true":"false");
+    });
+    if(tab==="songbook") renderSongbook();
+    else if(tab==="search") renderSearch();
+    else if(tab==="paste") renderPaste();
+    else if(tab==="mic") renderMic();
+    window.scrollTo({top:0, behavior:"instant"});
+  }
+
+  tabsEl.addEventListener("click", e=>{
+    const b = e.target.closest("button[data-tab]");
+    if(b) setTab(b.dataset.tab);
+  });
+
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"']/g, c=>(
+      {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // boot
+  setTab("songbook");
+  window.__KARAOKE_READY__ = true;
+})();
+</script>
+</body>
+</html>
