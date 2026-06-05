@@ -77,7 +77,13 @@
   footer.foot{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
 
   /* ---------------- Player / immersive stage ---------------- */
+  /* While a song is open the player is the whole page: hide the rest of the app
+     so a drag can't scroll the songbook behind it. */
+  body.playing{overflow:hidden;height:100%}
+  body.playing #app{display:none}
   #stage{position:relative}
+  #stage.expanded{overscroll-behavior:none}
+  .lyricbox{overscroll-behavior:none}
   #stage.expanded{
     position:fixed; inset:0; z-index:60; margin:0; max-width:none;
     background:radial-gradient(130% 90% at 50% -10%,#16224a 0%,#0a1020 70%);
@@ -167,9 +173,6 @@
     <button role="tab" data-tab="paste" aria-selected="false">Paste lyrics</button>
   </nav>
 
-  <!-- The player stage is persistent; it lifts to full-screen when a song starts -->
-  <div id="stage" hidden></div>
-
   <main id="view"></main>
 
   <footer class="foot">
@@ -180,6 +183,9 @@
     this is a lyric teleprompter. The mic, when armed, is processed locally and never leaves your device.
   </footer>
 </div>
+
+<!-- The player is its own page: a body-level overlay shown while a song is open. -->
+<div id="stage" hidden></div>
 
 <script>
 (function(){
