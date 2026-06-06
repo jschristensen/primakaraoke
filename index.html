@@ -60,9 +60,10 @@
     text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--panel);
     border-radius:12px;padding:12px 13px;transition:.15s}
   .song:hover{transform:translateY(-2px);border-color:var(--accent)}
-  .song .n{font-size:11px;color:var(--accent);font-weight:700}
-  .song .t{font-weight:700;margin-top:2px}
-  .song .a{color:var(--muted);font-size:12.5px}
+  .song .t{font-weight:700}
+  .artisthd{display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-weight:800;color:#cdd8f5;font-size:14.5px}
+  .artisthd .pill{font-weight:600}
+  .artistgroup:first-of-type .artisthd{margin-top:6px}
   /* search results */
   .results{margin-top:12px;display:flex;flex-direction:column;gap:8px}
   .result{display:flex;gap:12px;align-items:center;justify-content:space-between;
@@ -94,14 +95,21 @@
   #stage:not(.expanded) .stagebar{border:1px solid var(--line);border-radius:14px 14px 0 0}
   .stagebar .ttl{font-weight:800;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stagebar .art{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .stagebody{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+  .mediapane{display:none;background:#000;border-bottom:1px solid var(--line)}
+  .stagebody.with-media .mediapane{display:block;flex:0 0 auto;width:100%;aspect-ratio:16/9;max-height:52%}
+  .mediapane iframe{width:100%;height:100%;border:0;display:block}
   .lyricbox{
-    position:relative;overflow:hidden;
-    background:radial-gradient(120% 80% at 50% 0%,#16224a 0%,#0c1326 70%);
-    border:1px solid var(--line);border-top:none;border-radius:0 0 14px 14px}
-  #stage:not(.expanded) .lyricbox{height:min(52vh,440px)}
-  #stage.expanded .lyricbox{flex:1 1 auto;border:none;border-radius:0}
-  .lyricscroll{position:absolute;left:0;right:0;padding:42vh 6vw;transition:transform .35s cubic-bezier(.22,.61,.36,1);text-align:center}
-  #stage:not(.expanded) .lyricscroll{padding:40% 22px}
+    position:relative;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    background:radial-gradient(120% 80% at 50% 0%,#16224a 0%,#0c1326 70%)}
+  .lyricscroll{padding:46vh 6vw;text-align:center}
+  /* wide / landscape: video beside the lyrics instead of stacked */
+  @media (min-width:820px) and (min-aspect-ratio:1/1){
+    .stagebody.with-media{flex-direction:row}
+    .stagebody.with-media .mediapane{width:50%;max-height:none;aspect-ratio:auto;
+      border-bottom:none;border-right:1px solid var(--line)}
+  }
   .blk{transition:color .2s, opacity .2s}
   .blk.section{color:#7aa0ff;font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin:.5em 0 .15em;font-weight:700}
   .blk.chord{font-family:ui-monospace,Menlo,monospace;color:#7fd0ff;opacity:.5;font-size:.8em;white-space:pre-wrap}
@@ -155,6 +163,9 @@
   @keyframes framepulse{0%,100%{opacity:.35}50%{opacity:.9}}
 
   .hint{padding:10px 16px;color:var(--muted);font-size:12.5px}
+  .mediabar{display:none;gap:8px;padding:10px 16px;background:rgba(8,14,28,.6);border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  .mediabar.on{display:flex}
+  .mediabar input{flex:1 1 220px}
 </style>
 </head>
 <body>
@@ -204,6 +215,7 @@
     `https://raw.githubusercontent.com/${SRC.owner}/${SRC.repo}/${SRC.branch}/${SRC.dir}/${encodeURIComponent(file)}`;
   const CACHE_KEY = "primakaraoke.songbook.v1";
   const CACHE_TTL = 1000 * 60 * 60 * 12; // 12h
+  const MEDIA_KEY = "primakaraoke.media.v1"; // per-song YouTube/Spotify links
 
   /* =====================================================================
    * Chord-sheet parsing
@@ -318,7 +330,15 @@
           </div>
           <button class="iconbtn" id="pl-close" title="Back to songbook (Esc)">✕</button>
         </div>
-        <div class="lyricbox"><div class="lyricscroll" id="pl-scroll"></div></div>
+        <div class="stagebody" id="pl-body">
+          <div class="mediapane" id="pl-media"></div>
+          <div class="lyricbox" id="pl-box"><div class="lyricscroll" id="pl-scroll"></div></div>
+        </div>
+        <div class="mediabar" id="pl-mediabar">
+          <input type="text" id="pl-mediaurl" placeholder="Paste a YouTube or Spotify link to play alongside…" autocomplete="off"/>
+          <button class="btn small primary" id="pl-mediaadd">Add</button>
+          <button class="btn ghost small" id="pl-mediaclear">Remove</button>
+        </div>
         <div class="micbar" id="pl-micbar">
           <span class="micdot"></span>
           <span class="label">MIC ADVANCE</span>
@@ -343,11 +363,16 @@
               <option value="1" selected>1×</option><option value="1.2">1.2×</option><option value="1.5">1.5×</option>
             </select>
           </label>
+          <button class="btn ghost small" id="pl-mediatoggle" title="Show a YouTube / Spotify video alongside">🎬 Video</button>
         </div>
         <div class="hint" id="pl-hint"></div>`;
       this.el = {
         title:stage.querySelector("#pl-title"), artist:stage.querySelector("#pl-artist"),
-        scroll:stage.querySelector("#pl-scroll"), box:stage.querySelector(".lyricbox"),
+        scroll:stage.querySelector("#pl-scroll"), box:stage.querySelector("#pl-box"),
+        body:stage.querySelector("#pl-body"), media:stage.querySelector("#pl-media"),
+        mediabar:stage.querySelector("#pl-mediabar"), mediaurl:stage.querySelector("#pl-mediaurl"),
+        mediaadd:stage.querySelector("#pl-mediaadd"), mediaclear:stage.querySelector("#pl-mediaclear"),
+        mediatoggle:stage.querySelector("#pl-mediatoggle"),
         prev:stage.querySelector("#pl-prev"), next:stage.querySelector("#pl-next"),
         bar:stage.querySelector("#pl-bar"), counter:stage.querySelector("#pl-counter"),
         chords:stage.querySelector("#pl-chords"), speed:stage.querySelector("#pl-speed"),
@@ -357,6 +382,10 @@
         close:stage.querySelector("#pl-close"),
         modeBtns:[...stage.querySelectorAll(".seg button")],
       };
+      this.el.mediatoggle.onclick = ()=> this.el.mediabar.classList.toggle("on");
+      this.el.mediaadd.onclick = ()=> this.applyMedia(this.el.mediaurl.value, true);
+      this.el.mediaclear.onclick = ()=>{ this.el.mediaurl.value=""; this.clearMedia(true); };
+      this.el.mediaurl.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); this.applyMedia(this.el.mediaurl.value, true); }});
       this.el.next.onclick = ()=> this.next(true);
       this.el.prev.onclick = ()=> this.prev();
       this.el.close.onclick = ()=> this.requestClose();
@@ -374,8 +403,13 @@
       this.el.artist.textContent = song.artist || "";
       this.el.chords.parentElement.style.display = song.blocks.some(b=>b.kind==="chord"||b.chords) ? "" : "none";
       this.renderBlocks();
-      this.enter();               // ← full-page, own history entry, locked dimensions
+      this.enter();               // ← full-page, own history entry
       this.setMode("manual");
+      // restore any video previously attached to this song
+      const saved = this.savedMedia();
+      this.el.mediabar.classList.remove("on");
+      this.el.mediaurl.value = saved || "";
+      if(saved) this.applyMedia(saved, false); else this.clearMedia(false);
       this.update();
       // focus stage for keyboard control
       stage.tabIndex = -1; stage.focus({preventScroll:true});
@@ -413,14 +447,18 @@
         d.classList.toggle("active", i===this.step);
         d.classList.toggle("past", i<this.step);
       });
-      const active = this.lyricEls[this.step];
-      if(active){
-        const h=this.el.box.clientHeight;
-        const y=active.offsetTop + active.offsetHeight/2;
-        this.el.scroll.style.transform = `translateY(${h/2 - y}px)`;
-      }
+      this.centerActive(true);
       this.el.counter.textContent = (total? (this.step+1):0) + " / " + total;
       this.el.bar.style.width = total>1 ? (this.step/(total-1)*100)+"%" : (total?100:0)+"%";
+    },
+    // Centre the active line in the lyric pane via real scrolling, so the text
+    // can also be dragged/scrolled freely (especially in manual mode).
+    centerActive(smooth){
+      const el=this.lyricEls[this.step], box=this.el.box;
+      if(!el||!box||box.clientHeight===0) return;
+      const er=el.getBoundingClientRect(), br=box.getBoundingClientRect();
+      const target = box.scrollTop + (er.top - br.top) - (box.clientHeight/2 - el.offsetHeight/2);
+      box.scrollTo({top: Math.max(0,target), behavior: smooth?"smooth":"auto"});
     },
 
     goto(i){
@@ -439,7 +477,7 @@
       this.stopAuto(); this.stopMic();
       this.el.speedwrap.style.display = mode==="auto" ? "" : "none";
       this.el.hint.textContent = mode==="manual"
-        ? "Manual: tap ⏭, press Space / → for the next line, ← to go back, or click any line."
+        ? "Manual: scroll the lyrics freely; tap ⏭ / Space / → for the next line, ← to go back, or tap a line to centre it."
         : mode==="auto"
         ? "Auto: lines advance on a steady pace (or the track's real timing for synced search results). Adjust speed at right."
         : "Voice-advance: sing into the mic and each line advances when you finish it. Watch the red bar below.";
@@ -551,11 +589,55 @@
     },
     close(fromPop){
       this.stopAuto(); this.stopMic();
+      if(this.el && this.el.media){ this.el.media.innerHTML=""; this.el.body.classList.remove("with-media"); } // stop video audio
       stage.classList.remove("expanded");
       document.body.classList.remove("playing");
       document.body.style.overflow = "";
       stage.hidden = true;
       if(!fromPop && location.hash === "#play") history.back();
+    },
+
+    /* ---- split-screen media (YouTube / Spotify) ---- */
+    parseMedia(url){
+      url = (url||"").trim(); if(!url) return null;
+      let m;
+      if((m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)))
+        return { embed:`https://www.youtube.com/embed/${m[1]}?rel=0`, kind:"youtube" };
+      if(/^[\w-]{11}$/.test(url))
+        return { embed:`https://www.youtube.com/embed/${url}?rel=0`, kind:"youtube" };
+      if((m = url.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(?:embed\/)?(track|album|playlist|episode|artist)\/(\w+)/)))
+        return { embed:`https://open.spotify.com/embed/${m[1]}/${m[2]}`, kind:"spotify" };
+      if((m = url.match(/^spotify:(track|album|playlist|episode|artist):(\w+)$/)))
+        return { embed:`https://open.spotify.com/embed/${m[1]}/${m[2]}`, kind:"spotify" };
+      return null;
+    },
+    applyMedia(url, save){
+      const m = this.parseMedia(url);
+      if(!m){ if((url||"").trim()) toast("Couldn’t read that link — paste a YouTube or Spotify URL."); return; }
+      const allow = m.kind==="youtube"
+        ? "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        : "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
+      this.el.media.innerHTML =
+        `<iframe src="${m.embed}" allow="${allow}" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+      this.el.body.classList.add("with-media");
+      this.el.mediaurl.value = url;
+      if(save) this.saveMedia(url);
+      requestAnimationFrame(()=>this.centerActive(false));
+    },
+    clearMedia(save){
+      this.el.media.innerHTML = "";
+      this.el.body.classList.remove("with-media");
+      if(save) this.saveMedia("");
+      requestAnimationFrame(()=>this.centerActive(false));
+    },
+    songKey(){ return (this.song? (this.song.artist||"")+" — "+(this.song.title||"") : ""); },
+    savedMedia(){ try{ return (JSON.parse(localStorage.getItem(MEDIA_KEY)||"{}"))[this.songKey()] || ""; }catch(_){ return ""; } },
+    saveMedia(url){
+      try{
+        const map = JSON.parse(localStorage.getItem(MEDIA_KEY)||"{}");
+        if(url) map[this.songKey()] = url; else delete map[this.songKey()];
+        localStorage.setItem(MEDIA_KEY, JSON.stringify(map));
+      }catch(_){}
     },
   };
 
@@ -641,15 +723,25 @@
     try{
       songbook = await fetchSongbook(force);
       count.textContent = songbook.length + " songs";
-      const grid=document.createElement("div"); grid.className="songgrid";
-      songbook.forEach((s,i)=>{
-        const b=document.createElement("button"); b.className="song";
-        b.innerHTML = `<div class="n">${String(i+1).padStart(2,"0")}</div>
-          <div class="t">${esc(s.title)}</div><div class="a">${esc(s.artist)}</div>`;
-        b.onclick = ()=> Player.load(s);
-        grid.appendChild(b);
+      // group by artist, preserving first-appearance order
+      const byArtist = new Map();
+      songbook.forEach(s=>{ const a=s.artist||"Unknown"; if(!byArtist.has(a)) byArtist.set(a,[]); byArtist.get(a).push(s); });
+      body.innerHTML="";
+      byArtist.forEach((songs, artist)=>{
+        const group=document.createElement("div"); group.className="artistgroup";
+        const hd=document.createElement("div"); hd.className="artisthd";
+        hd.innerHTML = `${esc(artist)} <span class="pill">${songs.length}</span>`;
+        group.appendChild(hd);
+        const grid=document.createElement("div"); grid.className="songgrid";
+        songs.forEach(s=>{
+          const b=document.createElement("button"); b.className="song";
+          b.innerHTML = `<div class="t">${esc(s.title)}</div>`;
+          b.onclick = ()=> Player.load(s);
+          grid.appendChild(b);
+        });
+        group.appendChild(grid);
+        body.appendChild(group);
       });
-      body.innerHTML=""; body.appendChild(grid);
     }catch(err){
       count.textContent="error";
       body.innerHTML = `<div class="panel" style="border-color:var(--bad)">
