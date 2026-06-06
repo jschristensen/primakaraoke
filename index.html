@@ -316,6 +316,23 @@
     finally{ clearTimeout(t); }
   }
 
+  // JSONP loader — needed for the iTunes Search API, which doesn't allow CORS
+  // fetch() but officially supports a `callback` parameter. Resolves null on fail.
+  function jsonp(url, ms){
+    return new Promise((resolve)=>{
+      const cb = "__jsonp_" + Math.random().toString(36).slice(2);
+      const s = document.createElement("script");
+      let done = false;
+      const cleanup = ()=>{ if(s.parentNode) s.parentNode.removeChild(s); try{ delete window[cb]; }catch(_){ window[cb]=undefined; } };
+      const finish = (val)=>{ if(done) return; done=true; clearTimeout(timer); cleanup(); resolve(val); };
+      const timer = setTimeout(()=>finish(null), ms||7000);
+      window[cb] = (data)=> finish(data);
+      s.onerror = ()=> finish(null);
+      s.src = url + (url.indexOf("?")>=0?"&":"?") + "callback=" + cb;
+      document.head.appendChild(s);
+    });
+  }
+
   const stage = document.getElementById("stage");
   const Player = {
     song:null, step:0, mode:"manual", showChords:false,
@@ -669,10 +686,11 @@
     async resolveLinks(song){
       const key = this.songKeyFor(song);
       try{ const c = JSON.parse(localStorage.getItem(LINKS_KEY)||"{}"); if(c[key]) return c[key]; }catch(_){}
-      const term = encodeURIComponent(((song.artist||"") + " " + (song.title||"")).trim());
       const out = { apple:null, spotify:null, tidal:null, durationSec:null };
-      const it = await fetchJSON(`https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${term}`, 7000);
-      const r = it && it.results && it.results[0];
+      const itunes = (term)=> jsonp(`https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(term)}`, 7000);
+      let it = await itunes(((song.artist||"") + " " + (song.title||"")).trim());
+      let r = it && it.results && it.results[0];
+      if(!r && song.title){ it = await itunes(song.title.trim()); r = it && it.results && it.results[0]; }   // retry on title only
       if(r){
         out.apple = r.trackViewUrl || null;
         if(r.trackTimeMillis) out.durationSec = Math.round(r.trackTimeMillis/1000);
