@@ -335,9 +335,12 @@
           <div class="lyricbox" id="pl-box"><div class="lyricscroll" id="pl-scroll"></div></div>
         </div>
         <div class="mediabar" id="pl-mediabar">
-          <input type="text" id="pl-mediaurl" placeholder="Paste a YouTube or Spotify link to play alongside…" autocomplete="off"/>
-          <button class="btn small primary" id="pl-mediaadd">Add</button>
+          <button class="btn small primary" id="pl-mediafind">🔎 Auto-find on YouTube</button>
+          <input type="text" id="pl-mediaurl" placeholder="…or paste a YouTube / Spotify link" autocomplete="off"/>
+          <button class="btn small" id="pl-mediaadd">Add link</button>
+          <button class="btn ghost small" id="pl-mediaopen">Open YouTube ↗</button>
           <button class="btn ghost small" id="pl-mediaclear">Remove</button>
+          <span class="muted small" style="flex:1 1 100%;margin-top:2px">Auto-find loads YouTube's top match for the song — if it errors, paste a link or use Open YouTube.</span>
         </div>
         <div class="micbar" id="pl-micbar">
           <span class="micdot"></span>
@@ -372,7 +375,8 @@
         body:stage.querySelector("#pl-body"), media:stage.querySelector("#pl-media"),
         mediabar:stage.querySelector("#pl-mediabar"), mediaurl:stage.querySelector("#pl-mediaurl"),
         mediaadd:stage.querySelector("#pl-mediaadd"), mediaclear:stage.querySelector("#pl-mediaclear"),
-        mediatoggle:stage.querySelector("#pl-mediatoggle"),
+        mediatoggle:stage.querySelector("#pl-mediatoggle"), mediafind:stage.querySelector("#pl-mediafind"),
+        mediaopen:stage.querySelector("#pl-mediaopen"),
         prev:stage.querySelector("#pl-prev"), next:stage.querySelector("#pl-next"),
         bar:stage.querySelector("#pl-bar"), counter:stage.querySelector("#pl-counter"),
         chords:stage.querySelector("#pl-chords"), speed:stage.querySelector("#pl-speed"),
@@ -382,7 +386,15 @@
         close:stage.querySelector("#pl-close"),
         modeBtns:[...stage.querySelectorAll(".seg button")],
       };
-      this.el.mediatoggle.onclick = ()=> this.el.mediabar.classList.toggle("on");
+      this.el.mediatoggle.onclick = ()=>{
+        const on = this.el.mediabar.classList.toggle("on");
+        if(on && !this.el.media.firstChild) this.autoFind();   // ← auto search on first open
+      };
+      this.el.mediafind.onclick = ()=> this.autoFind();
+      this.el.mediaopen.onclick = ()=>{
+        const q = encodeURIComponent(((this.song&&this.song.artist||"")+" "+(this.song&&this.song.title||"")).trim());
+        window.open("https://www.youtube.com/results?search_query="+q, "_blank", "noopener");
+      };
       this.el.mediaadd.onclick = ()=> this.applyMedia(this.el.mediaurl.value, true);
       this.el.mediaclear.onclick = ()=>{ this.el.mediaurl.value=""; this.clearMedia(true); };
       this.el.mediaurl.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); this.applyMedia(this.el.mediaurl.value, true); }});
@@ -601,6 +613,9 @@
     parseMedia(url){
       url = (url||"").trim(); if(!url) return null;
       let m;
+      // "ytsearch:<query>" -> let YouTube pick the top match (no API key needed)
+      if((m = url.match(/^ytsearch:(.+)$/i)))
+        return { embed:`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(m[1].trim())}&rel=0`, kind:"youtube" };
       if((m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)))
         return { embed:`https://www.youtube.com/embed/${m[1]}?rel=0`, kind:"youtube" };
       if(/^[\w-]{11}$/.test(url))
@@ -620,9 +635,17 @@
       this.el.media.innerHTML =
         `<iframe src="${m.embed}" allow="${allow}" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
       this.el.body.classList.add("with-media");
-      this.el.mediaurl.value = url;
+      this.el.mediaurl.value = /^ytsearch:/i.test(url) ? "" : url;   // hide the internal search token
       if(save) this.saveMedia(url);
       requestAnimationFrame(()=>this.centerActive(false));
+    },
+    // Let YouTube pick the best match for "<artist> <title>" and load it inline.
+    autoFind(){
+      if(!this.song) return;
+      const q = ((this.song.artist||"") + " " + (this.song.title||"")).trim();
+      if(!q) return;
+      this.el.mediabar.classList.add("on");
+      this.applyMedia("ytsearch:" + q, true);
     },
     clearMedia(save){
       this.el.media.innerHTML = "";
