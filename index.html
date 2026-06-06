@@ -655,10 +655,14 @@
       if(loading){
         this.el.medianote.textContent = "Looking up the track…";
       } else {
-        const any = links && (links.apple||links.spotify||links.tidal);
-        this.el.medianote.textContent = any
-          ? "Tap to play in the app — on iPhone the audio keeps going in the background while you sing."
-          : "Couldn’t match this track exactly — the buttons search the service by name.";
+        const diag = (links && links.diag) || "no result";
+        if(links && links.spotify && links.tidal){
+          this.el.medianote.textContent = "Tap to play in the app — on iPhone the audio keeps going in the background while you sing.";
+        } else if(links && (links.apple||links.spotify||links.tidal)){
+          this.el.medianote.textContent = "Partial match (" + diag + "). Resolved buttons jump to the track; the rest search by name.";
+        } else {
+          this.el.medianote.textContent = "Couldn’t match this track — " + diag + ". The buttons still search each service by name.";
+        }
       }
       set(this.el.svc.apple,   !!(links && links.apple));
       set(this.el.svc.spotify, !!(links && links.spotify));
@@ -686,21 +690,27 @@
     async resolveLinks(song){
       const key = this.songKeyFor(song);
       try{ const c = JSON.parse(localStorage.getItem(LINKS_KEY)||"{}"); if(c[key]) return c[key]; }catch(_){}
-      const out = { apple:null, spotify:null, tidal:null, durationSec:null };
+      const out = { apple:null, spotify:null, tidal:null, durationSec:null, diag:"" };
       const itunes = (term)=> jsonp(`https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(term)}`, 7000);
       let it = await itunes(((song.artist||"") + " " + (song.title||"")).trim());
+      let reached = (it !== null);
       let r = it && it.results && it.results[0];
-      if(!r && song.title){ it = await itunes(song.title.trim()); r = it && it.results && it.results[0]; }   // retry on title only
-      if(r){
+      if(!r && song.title){ it = await itunes(song.title.trim()); if(it!==null) reached=true; r = it && it.results && it.results[0]; }   // retry on title only
+      if(!r){
+        out.diag = reached ? "iTunes: no match for this name" : "iTunes unreachable (JSONP blocked or offline)";
+      } else {
         out.apple = r.trackViewUrl || null;
         if(r.trackTimeMillis) out.durationSec = Math.round(r.trackTimeMillis/1000);
+        out.diag = "apple-only";
         if(out.apple){
           const od = await fetchJSON(`https://api.song.link/v1-alpha.1/links?platform=appleMusic&userCountry=US&songIfSingle=true&url=${encodeURIComponent(out.apple)}`, 8000);
+          if(od === null) out.diag = "Odesli unreachable (Apple OK)";
           const L = od && od.linksByPlatform;
           if(L){
             if(L.appleMusic && L.appleMusic.url) out.apple   = L.appleMusic.url;
             if(L.spotify   && L.spotify.url)   out.spotify = L.spotify.url;
             if(L.tidal     && L.tidal.url)     out.tidal   = L.tidal.url;
+            out.diag = "ok";
           }
         }
       }
