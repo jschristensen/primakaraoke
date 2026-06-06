@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - claude/karaoke-github-pages-deploy-J7dGB
   workflow_dispatch:
 
 permissions:
