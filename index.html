@@ -215,7 +215,17 @@
     `https://raw.githubusercontent.com/${SRC.owner}/${SRC.repo}/${SRC.branch}/${SRC.dir}/${encodeURIComponent(file)}`;
   const CACHE_KEY = "primakaraoke.songbook.v1";
   const CACHE_TTL = 1000 * 60 * 60 * 12; // 12h
-  const MEDIA_KEY = "primakaraoke.media.v1"; // per-song YouTube/Spotify links
+  const MEDIA_KEY = "primakaraoke.media.v2"; // per-song YouTube/Spotify links
+  // No-key YouTube search: resolve a real video id via public Piped / Invidious
+  // instances (tried in order until one answers), then embed by id so it plays
+  // reliably. listType=search embeds are deprecated and show "video unavailable".
+  const YT_RESOLVERS = [
+    { type:"piped",     url:q=>`https://pipedapi.kavin.rocks/search?filter=videos&q=${encodeURIComponent(q)}` },
+    { type:"piped",     url:q=>`https://pipedapi.adminforge.de/search?filter=videos&q=${encodeURIComponent(q)}` },
+    { type:"invidious", url:q=>`https://yewtu.be/api/v1/search?type=video&q=${encodeURIComponent(q)}` },
+    { type:"invidious", url:q=>`https://invidious.nerdvpn.de/api/v1/search?type=video&q=${encodeURIComponent(q)}` },
+    { type:"piped",     url:q=>`https://pipedapi.leptons.xyz/search?filter=videos&q=${encodeURIComponent(q)}` },
+  ];
 
   /* =====================================================================
    * Chord-sheet parsing
@@ -314,6 +324,17 @@
   /* =====================================================================
    * The Player
    * =================================================================== */
+  // fetch JSON with an abort timeout; returns null on any failure
+  async function fetchJSON(url, ms){
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), ms||6000);
+    try{
+      const r = await fetch(url, { signal:ctl.signal, headers:{Accept:"application/json"} });
+      return r.ok ? await r.json() : null;
+    }catch(_){ return null; }
+    finally{ clearTimeout(t); }
+  }
+
   const stage = document.getElementById("stage");
   const Player = {
     song:null, step:0, mode:"manual", showChords:false,
@@ -340,7 +361,7 @@
           <button class="btn small" id="pl-mediaadd">Add link</button>
           <button class="btn ghost small" id="pl-mediaopen">Open YouTube ↗</button>
           <button class="btn ghost small" id="pl-mediaclear">Remove</button>
-          <span class="muted small" style="flex:1 1 100%;margin-top:2px">Auto-find loads YouTube's top match for the song — if it errors, paste a link or use Open YouTube.</span>
+          <span class="muted small" style="flex:1 1 100%;margin-top:2px">Auto-find searches YouTube and plays the top result. Some videos block embedding — if one won't play, tap Open YouTube and paste another link.</span>
         </div>
         <div class="micbar" id="pl-micbar">
           <span class="micdot"></span>
@@ -420,8 +441,8 @@
       // restore any video previously attached to this song
       const saved = this.savedMedia();
       this.el.mediabar.classList.remove("on");
-      this.el.mediaurl.value = saved || "";
-      if(saved) this.applyMedia(saved, false); else this.clearMedia(false);
+      if(saved && !/^ytsearch:/i.test(saved)){ this.el.mediaurl.value = saved; this.applyMedia(saved, false); }
+      else { this.el.mediaurl.value = ""; this.clearMedia(false); }
       this.update();
       // focus stage for keyboard control
       stage.tabIndex = -1; stage.focus({preventScroll:true});
@@ -613,9 +634,6 @@
     parseMedia(url){
       url = (url||"").trim(); if(!url) return null;
       let m;
-      // "ytsearch:<query>" -> let YouTube pick the top match (no API key needed)
-      if((m = url.match(/^ytsearch:(.+)$/i)))
-        return { embed:`https://www.youtube.com/embed?listType=search&list=${encodeURIComponent(m[1].trim())}&rel=0`, kind:"youtube" };
       if((m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)))
         return { embed:`https://www.youtube.com/embed/${m[1]}?rel=0`, kind:"youtube" };
       if(/^[\w-]{11}$/.test(url))
@@ -635,17 +653,40 @@
       this.el.media.innerHTML =
         `<iframe src="${m.embed}" allow="${allow}" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
       this.el.body.classList.add("with-media");
-      this.el.mediaurl.value = /^ytsearch:/i.test(url) ? "" : url;   // hide the internal search token
+      this.el.mediaurl.value = url;
       if(save) this.saveMedia(url);
       requestAnimationFrame(()=>this.centerActive(false));
     },
-    // Let YouTube pick the best match for "<artist> <title>" and load it inline.
-    autoFind(){
+    // Resolve a real YouTube video id for "<artist> <title>" and embed it.
+    async autoFind(){
       if(!this.song) return;
       const q = ((this.song.artist||"") + " " + (this.song.title||"")).trim();
       if(!q) return;
       this.el.mediabar.classList.add("on");
-      this.applyMedia("ytsearch:" + q, true);
+      const btn = this.el.mediafind, label = btn.textContent;
+      btn.disabled = true; btn.textContent = "🔎 Searching…";
+      let id = null;
+      try{ id = await this.resolveYouTubeId(q); }catch(_){}
+      btn.disabled = false; btn.textContent = label;
+      if(id) this.applyMedia("https://www.youtube.com/watch?v=" + id, true);
+      else toast("Couldn’t auto-find a playable video — tap “Open YouTube ↗” and paste a link.", 5000);
+    },
+    async resolveYouTubeId(q){
+      for(const r of YT_RESOLVERS){
+        const data = await fetchJSON(r.url(q), 6000);
+        if(!data) continue;
+        try{
+          if(r.type==="piped"){
+            const v = (data.items||[]).find(it=> typeof it.url==="string" && it.url.includes("v="));
+            if(v){ const id = new URLSearchParams(v.url.split("?")[1]).get("v"); if(id) return id; }
+          } else {
+            const arr = Array.isArray(data) ? data : (data.items||[]);
+            const v = arr.find(it=> it.videoId);
+            if(v) return v.videoId;
+          }
+        }catch(_){}
+      }
+      return null;
     },
     clearMedia(save){
       this.el.media.innerHTML = "";
