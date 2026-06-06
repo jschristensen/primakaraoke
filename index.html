@@ -209,6 +209,14 @@
   const LINKS_KEY = "primakaraoke.links.v1"; // per-song resolved service links + duration
   const RESOLVER_KEY = "primakaraoke.resolver"; // optional backend (see worker/resolver.js)
 
+  // Precomputed exact links, built in CI by scripts/build-links.mjs and served
+  // from this same origin (no CORS, no live lookups). This is the primary path.
+  let PRECOMPUTED = {};
+  const precomputedReady = (typeof fetch === "function" ? fetch("links.json", { cache:"no-cache" }) : Promise.reject())
+    .then(r=> r.ok ? r.json() : {})
+    .then(j=>{ PRECOMPUTED = j || {}; })
+    .catch(()=>{});
+
   /* =====================================================================
    * Chord-sheet parsing
    *   A song file is chords-above-lyrics text with [Section] headers.
@@ -689,6 +697,13 @@
     // iTunes Search (exact track + duration + Apple link) -> Odesli (Spotify/Tidal).
     async resolveLinks(song){
       const key = this.songKeyFor(song);
+      // 1) precomputed links.json (built in CI) — primary, no network lookups
+      try{ await precomputedReady; }catch(_){}
+      if(PRECOMPUTED && PRECOMPUTED[key]){
+        const p = PRECOMPUTED[key];
+        return { apple:p.apple||null, spotify:p.spotify||null, tidal:p.tidal||null, durationSec:p.durationSec||null, diag:"ok" };
+      }
+      // 2) anything we resolved live earlier this session
       try{ const c = JSON.parse(localStorage.getItem(LINKS_KEY)||"{}"); if(c[key]) return c[key]; }catch(_){}
       const out = { apple:null, spotify:null, tidal:null, durationSec:null, diag:"" };
 
