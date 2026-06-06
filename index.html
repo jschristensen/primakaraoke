@@ -165,7 +165,8 @@
   .hint{padding:10px 16px;color:var(--muted);font-size:12.5px}
   .mediabar{display:none;gap:8px;padding:10px 16px;background:rgba(8,14,28,.6);border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
   .mediabar.on{display:flex}
-  .mediabar input{flex:1 1 220px}
+  .mediabar input{flex:1 1 200px}
+  .medialinks{display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex:1 1 100%}
 </style>
 </head>
 <body>
@@ -356,12 +357,21 @@
           <div class="lyricbox" id="pl-box"><div class="lyricscroll" id="pl-scroll"></div></div>
         </div>
         <div class="mediabar" id="pl-mediabar">
-          <button class="btn small primary" id="pl-mediafind">🔎 Auto-find on YouTube</button>
-          <input type="text" id="pl-mediaurl" placeholder="…or paste a YouTube / Spotify link" autocomplete="off"/>
-          <button class="btn small" id="pl-mediaadd">Add link</button>
-          <button class="btn ghost small" id="pl-mediaopen">Open YouTube ↗</button>
-          <button class="btn ghost small" id="pl-mediaclear">Remove</button>
-          <span class="muted small" style="flex:1 1 100%;margin-top:2px">Auto-find searches YouTube and plays the top result. Some videos block embedding — if one won't play, tap Open YouTube and paste another link.</span>
+          <div class="medialinks">
+            <span class="muted small">Play this song in:</span>
+            <button class="btn small primary" id="pl-svc-spotify">Spotify</button>
+            <button class="btn small" id="pl-svc-tidal">Tidal</button>
+            <button class="btn small" id="pl-svc-apple">Apple&nbsp;Music</button>
+            <button class="btn small" id="pl-svc-ytm">YouTube</button>
+          </div>
+          <div class="medialinks">
+            <span class="muted small">In-page embed:</span>
+            <button class="btn ghost small" id="pl-mediafind">🔎 Auto-find</button>
+            <input type="text" id="pl-mediaurl" placeholder="…or paste a YouTube / Spotify link" autocomplete="off"/>
+            <button class="btn ghost small" id="pl-mediaadd">Add</button>
+            <button class="btn ghost small" id="pl-mediaclear">Remove</button>
+          </div>
+          <span class="muted small" style="flex:1 1 100%">On iPhone, Spotify / Tidal / Apple&nbsp;Music open the app and keep playing in the background while you sing — switch back here for the lyrics. In-page embeds only play full tracks where the service allows it (often a 30‑sec preview otherwise).</span>
         </div>
         <div class="micbar" id="pl-micbar">
           <span class="micdot"></span>
@@ -387,7 +397,7 @@
               <option value="1" selected>1×</option><option value="1.2">1.2×</option><option value="1.5">1.5×</option>
             </select>
           </label>
-          <button class="btn ghost small" id="pl-mediatoggle" title="Show a YouTube / Spotify video alongside">🎬 Video</button>
+          <button class="btn ghost small" id="pl-mediatoggle" title="Play this song from a music / video service">🎵 Play</button>
         </div>
         <div class="hint" id="pl-hint"></div>`;
       this.el = {
@@ -397,7 +407,10 @@
         mediabar:stage.querySelector("#pl-mediabar"), mediaurl:stage.querySelector("#pl-mediaurl"),
         mediaadd:stage.querySelector("#pl-mediaadd"), mediaclear:stage.querySelector("#pl-mediaclear"),
         mediatoggle:stage.querySelector("#pl-mediatoggle"), mediafind:stage.querySelector("#pl-mediafind"),
-        mediaopen:stage.querySelector("#pl-mediaopen"),
+        svc:{
+          spotify:stage.querySelector("#pl-svc-spotify"), tidal:stage.querySelector("#pl-svc-tidal"),
+          apple:stage.querySelector("#pl-svc-apple"), youtube:stage.querySelector("#pl-svc-ytm"),
+        },
         prev:stage.querySelector("#pl-prev"), next:stage.querySelector("#pl-next"),
         bar:stage.querySelector("#pl-bar"), counter:stage.querySelector("#pl-counter"),
         chords:stage.querySelector("#pl-chords"), speed:stage.querySelector("#pl-speed"),
@@ -407,15 +420,12 @@
         close:stage.querySelector("#pl-close"),
         modeBtns:[...stage.querySelectorAll(".seg button")],
       };
-      this.el.mediatoggle.onclick = ()=>{
-        const on = this.el.mediabar.classList.toggle("on");
-        if(on && !this.el.media.firstChild) this.autoFind();   // ← auto search on first open
-      };
+      this.el.mediatoggle.onclick = ()=> this.el.mediabar.classList.toggle("on");
       this.el.mediafind.onclick = ()=> this.autoFind();
-      this.el.mediaopen.onclick = ()=>{
-        const q = encodeURIComponent(((this.song&&this.song.artist||"")+" "+(this.song&&this.song.title||"")).trim());
-        window.open("https://www.youtube.com/results?search_query="+q, "_blank", "noopener");
-      };
+      this.el.svc.spotify.onclick = ()=> this.openService("spotify");
+      this.el.svc.tidal.onclick   = ()=> this.openService("tidal");
+      this.el.svc.apple.onclick   = ()=> this.openService("apple");
+      this.el.svc.youtube.onclick = ()=> this.openService("youtube");
       this.el.mediaadd.onclick = ()=> this.applyMedia(this.el.mediaurl.value, true);
       this.el.mediaclear.onclick = ()=>{ this.el.mediaurl.value=""; this.clearMedia(true); };
       this.el.mediaurl.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); this.applyMedia(this.el.mediaurl.value, true); }});
@@ -656,6 +666,19 @@
       this.el.mediaurl.value = url;
       if(save) this.saveMedia(url);
       requestAnimationFrame(()=>this.centerActive(false));
+    },
+    // Open the song in an external music/video service (plays in its app;
+    // on iOS the audio keeps going in the background while you read the lyrics).
+    openService(svc){
+      if(!this.song) return;
+      const q = encodeURIComponent(((this.song.artist||"") + " " + (this.song.title||"")).trim());
+      const urls = {
+        spotify:`https://open.spotify.com/search/${q}`,
+        tidal:`https://tidal.com/search?q=${q}`,
+        apple:`https://music.apple.com/search?term=${q}`,
+        youtube:`https://www.youtube.com/results?search_query=${q}`,
+      };
+      if(urls[svc]) window.open(urls[svc], "_blank", "noopener");
     },
     // Resolve a real YouTube video id for "<artist> <title>" and embed it.
     async autoFind(){
