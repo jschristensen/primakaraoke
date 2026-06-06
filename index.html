@@ -207,6 +207,7 @@
   const CACHE_KEY = "primakaraoke.songbook.v1";
   const CACHE_TTL = 1000 * 60 * 60 * 12; // 12h
   const LINKS_KEY = "primakaraoke.links.v1"; // per-song resolved service links + duration
+  const RESOLVER_KEY = "primakaraoke.resolver"; // optional backend (see worker/resolver.js)
 
   /* =====================================================================
    * Chord-sheet parsing
@@ -316,21 +317,20 @@
     finally{ clearTimeout(t); }
   }
 
-  // JSONP loader — needed for the iTunes Search API, which doesn't allow CORS
-  // fetch() but officially supports a `callback` parameter. Resolves null on fail.
-  function jsonp(url, ms){
-    return new Promise((resolve)=>{
-      const cb = "__jsonp_" + Math.random().toString(36).slice(2);
-      const s = document.createElement("script");
-      let done = false;
-      const cleanup = ()=>{ if(s.parentNode) s.parentNode.removeChild(s); try{ delete window[cb]; }catch(_){ window[cb]=undefined; } };
-      const finish = (val)=>{ if(done) return; done=true; clearTimeout(timer); cleanup(); resolve(val); };
-      const timer = setTimeout(()=>finish(null), ms||7000);
-      window[cb] = (data)=> finish(data);
-      s.onerror = ()=> finish(null);
-      s.src = url + (url.indexOf("?")>=0?"&":"?") + "callback=" + cb;
-      document.head.appendChild(s);
-    });
+  // Public CORS proxies (tried in order) so the static page can read APIs that
+  // don't send CORS headers themselves (iTunes, Odesli). Best-effort — for
+  // reliability, point at your own backend via ?resolver=<url> (worker/resolver.js).
+  const PROXIES = [
+    (u)=> "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+    (u)=> "https://corsproxy.io/?url=" + encodeURIComponent(u),
+    (u)=> "https://thingproxy.freeboard.io/fetch/" + u,
+  ];
+  async function getViaProxy(targetUrl, ms){
+    for(const p of PROXIES){
+      const data = await fetchJSON(p(targetUrl), ms||9000);
+      if(data) return data;
+    }
+    return null;
   }
 
   const stage = document.getElementById("stage");
@@ -691,26 +691,39 @@
       const key = this.songKeyFor(song);
       try{ const c = JSON.parse(localStorage.getItem(LINKS_KEY)||"{}"); if(c[key]) return c[key]; }catch(_){}
       const out = { apple:null, spotify:null, tidal:null, durationSec:null, diag:"" };
-      const itunes = (term)=> jsonp(`https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(term)}`, 7000);
-      let it = await itunes(((song.artist||"") + " " + (song.title||"")).trim());
-      let reached = (it !== null);
-      let r = it && it.results && it.results[0];
-      if(!r && song.title){ it = await itunes(song.title.trim()); if(it!==null) reached=true; r = it && it.results && it.results[0]; }   // retry on title only
-      if(!r){
-        out.diag = reached ? "iTunes: no match for this name" : "iTunes unreachable (JSONP blocked or offline)";
+
+      const resolver = (()=>{ try{ return localStorage.getItem(RESOLVER_KEY)||""; }catch(_){ return ""; } })();
+      if(resolver){
+        // Backend does iTunes + Odesli server-side and returns clean JSON (CORS-safe).
+        const u = resolver + (resolver.indexOf("?")>=0?"&":"?") +
+          "artist=" + encodeURIComponent(song.artist||"") + "&title=" + encodeURIComponent(song.title||"");
+        const data = await fetchJSON(u, 9000);
+        if(data){
+          out.apple=data.apple||null; out.spotify=data.spotify||null; out.tidal=data.tidal||null; out.durationSec=data.durationSec||null;
+          out.diag = (out.apple||out.spotify||out.tidal) ? "ok" : "resolver: no match for this name";
+        } else { out.diag = "resolver unreachable"; }
       } else {
-        out.apple = r.trackViewUrl || null;
-        if(r.trackTimeMillis) out.durationSec = Math.round(r.trackTimeMillis/1000);
-        out.diag = "apple-only";
-        if(out.apple){
-          const od = await fetchJSON(`https://api.song.link/v1-alpha.1/links?platform=appleMusic&userCountry=US&songIfSingle=true&url=${encodeURIComponent(out.apple)}`, 8000);
-          if(od === null) out.diag = "Odesli unreachable (Apple OK)";
-          const L = od && od.linksByPlatform;
-          if(L){
-            if(L.appleMusic && L.appleMusic.url) out.apple   = L.appleMusic.url;
-            if(L.spotify   && L.spotify.url)   out.spotify = L.spotify.url;
-            if(L.tidal     && L.tidal.url)     out.tidal   = L.tidal.url;
-            out.diag = "ok";
+        // No backend configured: route the no-CORS APIs through public proxies.
+        const itUrl = (term)=> `https://itunes.apple.com/search?media=music&entity=song&limit=1&term=${encodeURIComponent(term)}`;
+        let j = await getViaProxy(itUrl(((song.artist||"") + " " + (song.title||"")).trim()), 9000);
+        let reached = (j !== null);
+        let r = j && j.results && j.results[0];
+        if(!r && song.title){ j = await getViaProxy(itUrl(song.title.trim()), 9000); if(j!==null) reached=true; r = j && j.results && j.results[0]; }
+        if(!r){
+          out.diag = reached ? "no match for this name" : "lookup blocked — set up the helper (see README)";
+        } else {
+          out.apple = r.trackViewUrl || null;
+          if(r.trackTimeMillis) out.durationSec = Math.round(r.trackTimeMillis/1000);
+          out.diag = "apple-only";
+          if(out.apple){
+            const od = await getViaProxy(`https://api.song.link/v1-alpha.1/links?platform=appleMusic&userCountry=US&songIfSingle=true&url=${encodeURIComponent(out.apple)}`, 9000);
+            const L = od && od.linksByPlatform;
+            if(L){
+              if(L.appleMusic && L.appleMusic.url) out.apple   = L.appleMusic.url;
+              if(L.spotify   && L.spotify.url)   out.spotify = L.spotify.url;
+              if(L.tidal     && L.tidal.url)     out.tidal   = L.tidal.url;
+              out.diag = "ok";
+            }
           }
         }
       }
@@ -909,6 +922,19 @@
     window.scrollTo({top:0});
   }
   tabsEl.addEventListener("click",e=>{ const b=e.target.closest("button[data-tab]"); if(b) setTab(b.dataset.tab); });
+
+  // One-time activation of an optional resolver backend: visit with
+  // ?resolver=<worker-url> to save it (or ?resolver=clear to remove it).
+  try{
+    const sp = new URLSearchParams(location.search);
+    if(sp.has("resolver")){
+      const v = (sp.get("resolver")||"").trim();
+      if(v && v.toLowerCase()!=="clear") localStorage.setItem(RESOLVER_KEY, v);
+      else localStorage.removeItem(RESOLVER_KEY);
+      try{ localStorage.removeItem(LINKS_KEY); }catch(_){}   // drop cached results so they re-resolve
+      history.replaceState(null, "", location.pathname);     // tidy the URL
+    }
+  }catch(_){}
 
   setTab("songbook");
   window.__KARAOKE_READY__=true;
